@@ -4,7 +4,8 @@ import type { LongProps } from "../types";
 import { CaptionsWordByWord } from "../ui/CaptionsWordByWord";
 import { GlassPanel } from "../ui/GlassPanel";
 
-export const ARPShort: React.FC<LongProps> = (props) => {
+export const ARPShort: React.FC<LongProps> = (props: LongProps) => {
+
   return (
     <AbsoluteFill style={{
       background: "radial-gradient(circle at top, rgba(0,168,255,0.18) 0%, rgba(2,3,8,1) 55%, rgba(0,0,0,1) 100%)",

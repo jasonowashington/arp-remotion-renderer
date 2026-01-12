@@ -15,7 +15,7 @@ const frames = (sec: number, fps: number) => Math.max(1, Math.round(sec * fps));
 
 const withOffsets = (scenes: Scene[], fps: number) => {
   let start = 0;
-  return scenes.map((s) => {
+  return scenes.map((s: Scene) => {
     const dur = frames(s.durationSec, fps);
     const out = { ...s, startFrame: start, durationFrames: dur };
     start += dur;

@@ -1,7 +1,7 @@
 import React from "react";
 
 export const AppWindow: React.FC<{ title: string; lines: string[] }> = ({ title, lines }) => {
-  const items = lines?.length ? lines : ["Add lines in props"];
+  const items = lines; // items is string[]
   return (
     <div style={{
       width: 560,
