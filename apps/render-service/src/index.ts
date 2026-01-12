@@ -38,4 +38,17 @@ app.post("/render/short", async (req, res) => {
   }
 });
 
+// Root route so Render/browser doesn't show "Cannot GET /"
+app.get("/", (_req, res) => {
+  res.status(200).type("text").send("ARP Remotion Renderer is online ✅");
+});
+
+// Health check endpoint (useful for monitoring / warmup gates)
+app.get("/healthz", (_req, res) => {
+  res.status(200).json({ ok: true, service: "arp-remotion-render-service" });
+});
+
+// Optional: favicon to stop 404 spam in logs
+app.get("/favicon.ico", (_req, res) => res.sendStatus(204));
+
 app.listen(env.PORT, () => logger.info(`ARP Render service listening on :${env.PORT}`));
