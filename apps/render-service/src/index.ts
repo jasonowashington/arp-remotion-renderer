@@ -51,4 +51,7 @@ app.get("/healthz", (_req, res) => {
 // Optional: favicon to stop 404 spam in logs
 app.get("/favicon.ico", (_req, res) => res.sendStatus(204));
 
+app.get("/health", (_req, res) => res.status(200).json({ ok: true }));
+app.get("/health/health", (_req, res) => res.status(200).json({ ok: true })); // alias
+
 app.listen(env.PORT, () => logger.info(`ARP Render service listening on :${env.PORT}`));
