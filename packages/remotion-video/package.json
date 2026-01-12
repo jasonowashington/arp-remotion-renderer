@@ -1,0 +1,9 @@
+{
+  "name": "@arp/remotion-video",
+  "private": true,
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "scripts": { "build": "tsc -p tsconfig.json" },
+  "dependencies": { "remotion": "^4.0.279" },
+  "devDependencies": { "@types/node": "^20.14.10", "typescript": "^5.5.4" }
+}

@@ -1,0 +1,1171 @@
+{
+  "name": "ARP Cloud Remotion Pipeline (R2 private + signed URLs + QA gate)",
+  "nodes": [
+    {
+      "id": "8bacb674-ba53-4828-93e4-793addccdbdb",
+      "name": "Cron Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        -1800,
+        200
+      ],
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyWeek",
+              "hour": 9,
+              "minute": 0,
+              "weekday": "MON"
+            },
+            {
+              "mode": "everyWeek",
+              "hour": 9,
+              "minute": 0,
+              "weekday": "THU"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "6d58a423-ef3b-4219-819e-b100eccd92f7",
+      "name": "Set Manifest",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1540,
+        200
+      ],
+      "parameters": {
+        "keepOnlySet": false,
+        "values": {
+          "string": [
+            {
+              "name": "runId",
+              "value": "={{ 'arp_' + $now.format('yyyyMMdd_HHmmss') }}"
+            },
+            {
+              "name": "brand",
+              "value": "Automated Realty Playbook"
+            },
+            {
+              "name": "theme",
+              "value": "tesla-clean-futurism"
+            },
+            {
+              "name": "r2Bucket",
+              "value": "arp-media"
+            },
+            {
+              "name": "r2Prefix",
+              "value": "={{ 'runs/' + $json.runId }}"
+            },
+            {
+              "name": "renderApiBase",
+              "value": "https://YOUR-RENDER-SERVICE.onrender.com"
+            },
+            {
+              "name": "signedUrlTtlSec",
+              "value": "604800"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "3b8c772b-80fb-4f18-ba1d-b8b5edfbd079",
+      "name": "StrategyAgent (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1280,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonParameters": true,
+        "options": {
+          "timeout": 120000
+        },
+        "bodyParametersJson": "={\n  \"model\": \"gpt-4o-mini\",\n  \"temperature\": 0.3,\n  \"max_tokens\": 450,\n  \"response_format\": {\"type\": \"json_object\"},\n  \"messages\": [\n    {\"role\":\"system\",\"content\":\"Return ONLY valid JSON. No markdown.\"},\n    {\"role\":\"user\",\"content\":\"Create a topic brief for Automated Realty Playbook (AI + real estate automation). Return JSON: {\\n \\\"title\\\":\\\"...\\\",\\n \\\"angle\\\":\\\"...\\\",\\n \\\"audience\\\":\\\"agents|investors|both\\\",\\n \\\"primaryKeyword\\\":\\\"...\\\",\\n \\\"keywords\\\":[\\\"...\\\",\\\"...\\\",\\\"...\\\"],\\n \\\"ctaPrimary\\\":\\\"Free 2026 AI Toolkit\\\",\\n \\\"ctaSecondary\\\":\\\"ARIA\\\"\\n }\"}\n  ]\n}"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_OPENAI_HTTP_HEADER_AUTH_ID",
+          "name": "OpenAI (Bearer token in Authorization header)"
+        }
+      }
+    },
+    {
+      "id": "242be324-c4d4-4a10-9fcf-836ee44e9850",
+      "name": "Parse Strategy JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1030,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const content = $json?.body?.choices?.[0]?.message?.content ?? $json?.choices?.[0]?.message?.content;\nif (!content) throw new Error(\"Missing OpenAI response content (Strategy)\");\nconst strategy = JSON.parse(content);\nreturn [{...$json, strategy, videoTitle: strategy.title}];\n"
+      }
+    },
+    {
+      "id": "56945557-3112-43d8-9c1a-5af4d997b8d3",
+      "name": "OutlineAgent (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -780,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonParameters": true,
+        "options": {
+          "timeout": 120000
+        },
+        "bodyParametersJson": "={\n  \"model\": \"gpt-4o-mini\",\n  \"temperature\": 0.3,\n  \"max_tokens\": 650,\n  \"response_format\": {\"type\": \"json_object\"},\n  \"messages\": [\n    {\"role\":\"system\",\"content\":\"Return ONLY valid JSON. No markdown.\"},\n    {\"role\":\"user\",\"content\":\"Using this strategy JSON: \" + JSON.stringify($json.strategy) + \"\\n\\nReturn outline JSON: {\\n \\\"scenes\\\":[{\\\"id\\\":1,\\\"purpose\\\":\\\"hook\\\",\\\"onScreen\\\":\\\"...\\\",\\\"brollSearch\\\":[\\\"...\\\",\\\"...\\\"]},...{\\\"id\\\":8,\\\"purpose\\\":\\\"cta\\\",\\\"onScreen\\\":\\\"...\\\",\\\"brollSearch\\\":[\\\"...\\\"]}],\\n \\\"runtimeTargetSec\\\":210\\n }\"}\n  ]\n}"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_OPENAI_HTTP_HEADER_AUTH_ID",
+          "name": "OpenAI (Bearer token in Authorization header)"
+        }
+      }
+    },
+    {
+      "id": "3d34bc36-961d-432e-af95-12cbbff63f54",
+      "name": "Parse Outline JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -530,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const content = $json?.body?.choices?.[0]?.message?.content ?? $json?.choices?.[0]?.message?.content;\nif (!content) throw new Error(\"Missing OpenAI response content (Outline)\");\nconst outline = JSON.parse(content);\nreturn [{...$json, outline}];\n"
+      }
+    },
+    {
+      "id": "9d4e7a7b-b98d-4dd5-a1e8-6ed6815688df",
+      "name": "ScriptAgent (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -280,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonParameters": true,
+        "options": {
+          "timeout": 180000
+        },
+        "bodyParametersJson": "={\n  \"model\": \"gpt-4o-mini\",\n  \"temperature\": 0.35,\n  \"max_tokens\": 900,\n  \"response_format\": {\"type\": \"json_object\"},\n  \"messages\": [\n    {\"role\":\"system\",\"content\":\"You are ScriptAgent for Automated Realty Playbook. Return ONLY JSON with schema: { \\\"script\\\":[{\\\"id\\\":1,\\\"narration\\\":\\\"...\\\",\\\"onScreen\\\":\\\"...\\\",\\\"lowerThird\\\":\\\"...\\\"}], \\\"runtimeTargetSec\\\":210 }\"},\n    {\"role\":\"user\",\"content\":\"Strategy: \" + JSON.stringify($json.strategy) + \"\\nOutline: \" + JSON.stringify($json.outline) + \"\\n\\nRules: Tesla-clean futurism tone, calm authority; no hype or guarantees; no fair-housing risky language; end with CTA to Free 2026 AI Toolkit + Subscribe. Return ONLY JSON.\"}\n  ]\n}"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_OPENAI_HTTP_HEADER_AUTH_ID",
+          "name": "OpenAI (Bearer token in Authorization header)"
+        }
+      }
+    },
+    {
+      "id": "7ff84145-4d11-444e-bcc5-808bffdd902e",
+      "name": "Parse Script JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -30,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const content = $json?.body?.choices?.[0]?.message?.content ?? $json?.choices?.[0]?.message?.content;\nif (!content) throw new Error(\"Missing OpenAI response content (Script)\");\nconst scriptObj = JSON.parse(content);\nconst narration = scriptObj.script.map(s => s.narration).join(\"\\n\\n\");\nreturn [{...$json, scriptObj, narration}];\n"
+      }
+    },
+    {
+      "id": "11242d52-b1a3-46d2-8379-7ea5a8feb917",
+      "name": "ComplianceAgent (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonParameters": true,
+        "options": {
+          "timeout": 120000
+        },
+        "bodyParametersJson": "={\n  \"model\": \"gpt-4o-mini\",\n  \"temperature\": 0.1,\n  \"max_tokens\": 500,\n  \"response_format\": {\"type\": \"json_object\"},\n  \"messages\": [\n    {\"role\":\"system\",\"content\":\"You are ComplianceAgent. Return ONLY JSON.\"},\n    {\"role\":\"user\",\"content\":\"Check this script for Fair Housing risk language, FTC affiliate disclosure requirements, and unsubstantiated advertising claims. Return JSON: { \\\"pass\\\":true|false, \\\"flags\\\":[...], \\\"fixes\\\":[{\\\"sceneId\\\":3,\\\"with\\\":\\\"replacement narration\\\"}], \\\"requiredBlocks\\\":{ \\\"ftc\\\":\\\"...\\\", \\\"education\\\":\\\"...\\\", \\\"ai\\\":\\\"...\\\", \\\"fairHousing\\\":\\\"...\\\" } }. Script: \" + JSON.stringify($json.scriptObj)}\n  ]\n}"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_OPENAI_HTTP_HEADER_AUTH_ID",
+          "name": "OpenAI (Bearer token in Authorization header)"
+        }
+      }
+    },
+    {
+      "id": "75bf9240-f821-4e59-8668-baaf8bafdd94",
+      "name": "Apply Compliance Fixes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        470,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const content = $json?.body?.choices?.[0]?.message?.content ?? $json?.choices?.[0]?.message?.content;\nif (!content) throw new Error(\"Missing OpenAI response content (Compliance)\");\nconst compliance = JSON.parse(content);\nlet script = $json.scriptObj.script;\nif (compliance.fixes?.length) {\n  for (const f of compliance.fixes) {\n    const i = script.findIndex(s => s.id === f.sceneId);\n    if (i >= 0) script[i].narration = f.with;\n  }\n}\nconst narration = script.map(s => s.narration).join(\"\\n\\n\");\nreturn [{...$json, compliance, scriptObj: {...$json.scriptObj, script}, narration}];\n"
+      }
+    },
+    {
+      "id": "b95c56e6-d85a-4cb6-b636-59deeb31b467",
+      "name": "Compliance Pass?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        720,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.compliance.pass }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "isTrue"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "b7f87b53-64b2-4902-8d43-dd034a54a7ff",
+      "name": "TTS Voiceover (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        980,
+        120
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/speech",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonParameters": true,
+        "options": {
+          "timeout": 300000
+        },
+        "bodyParametersJson": "={\n  \"model\":\"gpt-4o-mini-tts\",\n  \"voice\":\"alloy\",\n  \"format\":\"mp3\",\n  \"input\": $json.narration\n}",
+        "responseFormat": "file",
+        "outputPropertyName": "voiceover"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_OPENAI_HTTP_HEADER_AUTH_ID",
+          "name": "OpenAI (Bearer token in Authorization header)"
+        }
+      }
+    },
+    {
+      "id": "0777cef6-f9c3-4045-8ae1-8a5e17cba32a",
+      "name": "R2 Upload Voiceover (mp3)",
+      "type": "n8n-nodes-base.s3",
+      "typeVersion": 1,
+      "position": [
+        1230,
+        120
+      ],
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "={{ $json.r2Bucket }}",
+        "binaryPropertyName": "voiceover",
+        "fileName": "={{ $json.r2Prefix + '/audio/vo.mp3' }}",
+        "options": {
+          "contentType": "audio/mpeg"
+        }
+      },
+      "credentials": {
+        "s3": {
+          "id": "REPLACE_WITH_YOUR_R2_S3_CREDENTIAL_ID",
+          "name": "Cloudflare R2 (S3-compatible)"
+        }
+      }
+    },
+    {
+      "id": "d354ed1a-46c6-42d4-93c4-c8a45d89cd27",
+      "name": "Whisper Captions (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        980,
+        280
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/transcriptions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "options": {
+          "timeout": 300000
+        },
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "model",
+              "value": "gpt-4o-mini-transcribe"
+            },
+            {
+              "name": "response_format",
+              "value": "srt"
+            }
+          ]
+        },
+        "sendBinaryData": true,
+        "binaryPropertyName": "voiceover",
+        "responseFormat": "string"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_OPENAI_HTTP_HEADER_AUTH_ID",
+          "name": "OpenAI (Bearer token in Authorization header)"
+        }
+      }
+    },
+    {
+      "id": "8af209af-b55d-45e5-ae14-23247f52aa85",
+      "name": "Set Captions SRT",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1230,
+        280
+      ],
+      "parameters": {
+        "keepOnlySet": false,
+        "values": {
+          "string": [
+            {
+              "name": "captionsSrt",
+              "value": "={{ $json.body }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ef1b831b-5125-4d22-ad2a-ba9c2df5164e",
+      "name": "Captions Text \u2192 Binary",
+      "type": "n8n-nodes-base.moveBinaryData",
+      "typeVersion": 1,
+      "position": [
+        1490,
+        280
+      ],
+      "parameters": {
+        "mode": "jsonToBinary",
+        "options": {
+          "fileName": "captions.srt",
+          "mimeType": "text/plain"
+        },
+        "sourceKey": "captionsSrt",
+        "destinationKey": "captionsbin"
+      }
+    },
+    {
+      "id": "c7080ad6-c28d-4e60-94ad-09e82cfa3446",
+      "name": "R2 Upload Captions (srt)",
+      "type": "n8n-nodes-base.s3",
+      "typeVersion": 1,
+      "position": [
+        1750,
+        280
+      ],
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "={{ $json.r2Bucket }}",
+        "binaryPropertyName": "captionsbin",
+        "fileName": "={{ $json.r2Prefix + '/captions/captions.srt' }}",
+        "options": {
+          "contentType": "text/plain"
+        }
+      },
+      "credentials": {
+        "s3": {
+          "id": "REPLACE_WITH_YOUR_R2_S3_CREDENTIAL_ID",
+          "name": "Cloudflare R2 (S3-compatible)"
+        }
+      }
+    },
+    {
+      "id": "1b97d2d7-e3d1-4886-8af5-badaaefea281",
+      "name": "Build Remotion Props (Long)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1490,
+        120
+      ],
+      "parameters": {
+        "jsCode": "const props = {brand:$json.brand, theme:$json.theme, title:$json.videoTitle, scenes:$json.scriptObj.script}; return [{...$json, propsLong: JSON.stringify(props)}];"
+      }
+    },
+    {
+      "id": "0f6b0922-9aa6-49c0-b980-e25308cf33a4",
+      "name": "Props Text \u2192 Binary",
+      "type": "n8n-nodes-base.moveBinaryData",
+      "typeVersion": 1,
+      "position": [
+        1750,
+        120
+      ],
+      "parameters": {
+        "mode": "jsonToBinary",
+        "options": {
+          "fileName": "props.long.json",
+          "mimeType": "application/json"
+        },
+        "sourceKey": "propsLong",
+        "destinationKey": "propsbin"
+      }
+    },
+    {
+      "id": "de485371-ed5e-4eba-a04b-01c9ddd38a85",
+      "name": "R2 Upload Props (long.json)",
+      "type": "n8n-nodes-base.s3",
+      "typeVersion": 1,
+      "position": [
+        2010,
+        120
+      ],
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "={{ $json.r2Bucket }}",
+        "binaryPropertyName": "propsbin",
+        "fileName": "={{ $json.r2Prefix + '/render/props.long.json' }}",
+        "options": {
+          "contentType": "application/json"
+        }
+      },
+      "credentials": {
+        "s3": {
+          "id": "REPLACE_WITH_YOUR_R2_S3_CREDENTIAL_ID",
+          "name": "Cloudflare R2 (S3-compatible)"
+        }
+      }
+    },
+    {
+      "id": "b5e396fa-2057-4a27-8619-7eedd2ec5312",
+      "name": "Merge After Uploads",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        2230,
+        200
+      ],
+      "parameters": {
+        "mode": "wait"
+      }
+    },
+    {
+      "id": "2c2b2c38-52ce-4976-a9b8-ae12859920b0",
+      "name": "Render Long (Render.com API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2470,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.renderApiBase + '/render/long' }}",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonParameters": true,
+        "options": {
+          "timeout": 2100000
+        },
+        "bodyParametersJson": "={\"runId\":$json.runId,\"composition\":\"ARP_Long_16x9\",\"audioKey\":$json.r2Prefix+\"/audio/vo.mp3\",\"propsKey\":$json.r2Prefix+\"/render/props.long.json\",\"captionsKey\":$json.r2Prefix+\"/captions/captions.srt\",\"outputKey\":$json.r2Prefix+\"/final/final_16x9.mp4\",\"logKey\":$json.r2Prefix+\"/logs/render_long.log\"}"
+      }
+    },
+    {
+      "id": "b713765f-71a2-434b-a895-fb744ad82244",
+      "name": "Prepare YouTube Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2710,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const r = $json.body || $json;\nconst videoUrl = r.signed?.videoUrl;\nconst logUrl = r.signed?.logUrl;\nif (!videoUrl) throw new Error(\"Render API did not return signed.videoUrl\");\n\nconst blocks = $json.compliance?.requiredBlocks || {};\nconst disclosure = [\n  blocks.ftc || \"Disclosure: Some links may be affiliate links. I may earn a commission at no extra cost to you.\",\n  blocks.education || \"Educational purposes only. Not legal, tax, or financial advice.\",\n  blocks.ai || \"This video uses AI-assisted narration and production tools.\",\n  blocks.fairHousing || \"Fair Housing: We do not express preferences or limitations for protected classes.\"\n].join(\"\\n\");\n\nconst title = $json.videoTitle;\nconst desc = `${disclosure}\\n\\n${$json.strategy?.angle || \"\"}\\n\\n\u2705 Get the Free 2026 AI Toolkit\\n\u2705 Try ARIA\\n\\n#AIRealEstate #RealEstateAutomation #PropTech`;\nconst tags = ($json.strategy?.keywords || []).slice(0,10);\n\nreturn [{\n  ...$json,\n  render: r,\n  videoUrl,\n  logUrl,\n  youtubeTitle: title,\n  youtubeDescription: desc,\n  youtubeTags: tags,\n  privacyStatus: \"private\",\n  categoryId: \"28\"\n}];\n"
+      }
+    },
+    {
+      "id": "de41fa96-2397-41a4-b1ff-8e412614a3c4",
+      "name": "Send QA Approval Request (Slack)",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        2940,
+        200
+      ],
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "#video-qa-approval"
+        },
+        "messageType": "block",
+        "blocksUi": "=[\n  {\"type\":\"header\",\"text\":{\"type\":\"plain_text\",\"text\":\"\ud83c\udfac ARP VIDEO READY FOR QA\"}},\n  {\"type\":\"section\",\"fields\":[\n    {\"type\":\"mrkdwn\",\"text\":\"*Run ID:*\\n{{ $json.runId }}\"},\n    {\"type\":\"mrkdwn\",\"text\":\"*Title:*\\n{{ $json.youtubeTitle }}\"}\n  ]},\n  {\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*Signed Video:*\\n<{{ $json.videoUrl }}|Open Rendered MP4>\\n*Logs:*\\n<{{ $json.logUrl }}|Open Render Log>\"}},\n  {\"type\":\"divider\"},\n  {\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"Approve to upload to YouTube (private). Reject to stop.\"}},\n  {\"type\":\"actions\",\"elements\":[\n    {\"type\":\"button\",\"text\":{\"type\":\"plain_text\",\"text\":\"\u2705 Approve\"},\"style\":\"primary\",\"value\":\"approved\",\"action_id\":\"approve_video\"},\n    {\"type\":\"button\",\"text\":{\"type\":\"plain_text\",\"text\":\"\u274c Reject\"},\"style\":\"danger\",\"value\":\"rejected\",\"action_id\":\"reject_video\"}\n  ]}\n]",
+        "text": "ARP video ready for QA"
+      },
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_SLACK_CRED_ID",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "id": "3f49a85c-22cd-4898-a800-892ba01f6eac",
+      "name": "Wait for QA Decision",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3180,
+        200
+      ],
+      "parameters": {
+        "resume": "webhook",
+        "limitWaitTime": true,
+        "resumeAmount": 7,
+        "resumeUnit": "days",
+        "options": {}
+      },
+      "webhookId": "da284a70-c79d-41ac-9ad0-49b5e942cd5a"
+    },
+    {
+      "id": "6be3b18e-775a-479b-a827-c4dfbc8e0bd0",
+      "name": "Slack Interaction Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        2940,
+        400
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "slack-interaction-arp",
+        "responseMode": "onReceived",
+        "options": {}
+      }
+    },
+    {
+      "id": "8e39faa2-fb7c-400b-a9b3-23ab0af27c01",
+      "name": "Parse Slack Approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3180,
+        400
+      ],
+      "parameters": {
+        "jsCode": "const body=$json.body||{};let p=body.payload; if(!p && typeof body==='string' && body.startsWith('payload=')) p=decodeURIComponent(body.slice('payload='.length)); if(!p) throw new Error('Missing Slack payload'); const payload=JSON.parse(p); const status=payload.actions?.[0]?.value; return [{status,payload}];"
+      }
+    },
+    {
+      "id": "13c56f51-9f64-4dec-8cc6-65111a582df6",
+      "name": "Forward Status to Resume Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3400,
+        520
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WEBHOOK_URL + '/webhook/video-approval-arp' }}",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonParameters": true,
+        "bodyParametersJson": "={\"status\": $json.status}"
+      }
+    },
+    {
+      "id": "a70ffbca-3bcf-49b4-b375-1fd7619e336c",
+      "name": "QA Resume Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        3400,
+        400
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "video-approval-arp",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "3347c458-595c-443b-b56b-297fba76a74a",
+      "name": "Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3420,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.body.status }}",
+              "rightValue": "approved",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "046da4df-13a3-42d6-9ee2-5b4bd7c70033",
+      "name": "Merge Metadata Back",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        3650,
+        200
+      ],
+      "parameters": {
+        "mode": "wait"
+      }
+    },
+    {
+      "id": "13f64b0b-7157-48c1-b968-a58c9cfe0c9d",
+      "name": "Download MP4 (Signed URL)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3880,
+        200
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.videoUrl }}",
+        "responseFormat": "file",
+        "outputPropertyName": "video",
+        "options": {
+          "timeout": 600000
+        }
+      }
+    },
+    {
+      "id": "036a2cba-7bcf-4f86-b4f3-a3c3b182a9f8",
+      "name": "Upload to YouTube",
+      "type": "n8n-nodes-base.youtube",
+      "typeVersion": 1,
+      "position": [
+        4120,
+        200
+      ],
+      "parameters": {
+        "resource": "video",
+        "operation": "upload",
+        "binaryPropertyName": "video",
+        "title": "={{ $json.youtubeTitle }}",
+        "regionCode": "US",
+        "categoryId": "={{ $json.categoryId }}",
+        "options": {
+          "description": "={{ $json.youtubeDescription }}",
+          "privacyStatus": "={{ $json.privacyStatus }}",
+          "tags": "={{ $json.youtubeTags }}"
+        }
+      },
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_YT_CRED_ID",
+          "name": "YouTube account"
+        }
+      }
+    },
+    {
+      "id": "8ad3adc2-5b28-4efa-a996-7417a94fc589",
+      "name": "Notify Rejection (Slack)",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        3650,
+        320
+      ],
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "#video-qa-approval"
+        },
+        "text": "=\u274c *VIDEO REJECTED*\\n\\n*Run ID:* {{ $('Set Manifest').item.json.runId }}\\n*Title:* {{ $('Prepare YouTube Metadata').item.json.youtubeTitle }}\\n\\n*Signed Video:* {{ $('Prepare YouTube Metadata').item.json.videoUrl }}\\n*Logs:* {{ $('Prepare YouTube Metadata').item.json.logUrl }}",
+        "otherOptions": {}
+      },
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_SLACK_CRED_ID",
+          "name": "Slack account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Cron Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Manifest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Manifest": {
+      "main": [
+        [
+          {
+            "node": "StrategyAgent (OpenAI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "StrategyAgent (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "Parse Strategy JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Strategy JSON": {
+      "main": [
+        [
+          {
+            "node": "OutlineAgent (OpenAI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OutlineAgent (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "Parse Outline JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Outline JSON": {
+      "main": [
+        [
+          {
+            "node": "ScriptAgent (OpenAI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ScriptAgent (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "Parse Script JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Script JSON": {
+      "main": [
+        [
+          {
+            "node": "ComplianceAgent (OpenAI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ComplianceAgent (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "Apply Compliance Fixes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Compliance Fixes": {
+      "main": [
+        [
+          {
+            "node": "Compliance Pass?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compliance Pass?": {
+      "main": [
+        [
+          {
+            "node": "TTS Voiceover (OpenAI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TTS Voiceover (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "R2 Upload Voiceover (mp3)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Whisper Captions (OpenAI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Whisper Captions (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "Set Captions SRT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Captions SRT": {
+      "main": [
+        [
+          {
+            "node": "Captions Text \u2192 Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Captions Text \u2192 Binary": {
+      "main": [
+        [
+          {
+            "node": "R2 Upload Captions (srt)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "R2 Upload Voiceover (mp3)": {
+      "main": [
+        [
+          {
+            "node": "Build Remotion Props (Long)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Remotion Props (Long)": {
+      "main": [
+        [
+          {
+            "node": "Props Text \u2192 Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Props Text \u2192 Binary": {
+      "main": [
+        [
+          {
+            "node": "R2 Upload Props (long.json)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "R2 Upload Props (long.json)": {
+      "main": [
+        [
+          {
+            "node": "Merge After Uploads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "R2 Upload Captions (srt)": {
+      "main": [
+        [
+          {
+            "node": "Merge After Uploads",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge After Uploads": {
+      "main": [
+        [
+          {
+            "node": "Render Long (Render.com API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render Long (Render.com API)": {
+      "main": [
+        [
+          {
+            "node": "Prepare YouTube Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare YouTube Metadata": {
+      "main": [
+        [
+          {
+            "node": "Send QA Approval Request (Slack)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge Metadata Back",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Send QA Approval Request (Slack)": {
+      "main": [
+        [
+          {
+            "node": "Wait for QA Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Interaction Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Slack Approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Slack Approval": {
+      "main": [
+        [
+          {
+            "node": "Forward Status to Resume Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for QA Decision": {
+      "main": [
+        [
+          {
+            "node": "Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approved?": {
+      "main": [
+        [
+          {
+            "node": "Merge Metadata Back",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Rejection (Slack)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Metadata Back": {
+      "main": [
+        [
+          {
+            "node": "Download MP4 (Signed URL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download MP4 (Signed URL)": {
+      "main": [
+        [
+          {
+            "node": "Upload to YouTube",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "c0dfcd3c-2882-45af-9469-cd8c368dddc8",
+  "meta": {
+    "templateCredsNotice": "Placeholders: connect OpenAI, AWS S3 (R2), Slack, YouTube. Set renderApiBase in 'Set Manifest'."
+  }
+}

@@ -1,0 +1,1298 @@
+{
+  "name": "ARP Cloud Remotion Pipeline (R2 private + signed URLs + QA gate)",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyWeek",
+              "hour": 12,
+              "weekday": "6"
+            }
+          ]
+        }
+      },
+      "id": "da0ba40a-066a-4b6a-af7e-96aefcc32dc8",
+      "name": "Cron Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        -2784,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "64bb27c8-068e-4e6f-98f1-24693ac9607f",
+              "name": "renderApiBase",
+              "value": "https://arp-remotion-renderer.onrender.com",
+              "type": "string"
+            },
+            {
+              "id": "d5345db6-643e-49ef-ac22-4501e0deb13b",
+              "name": "R2_BUCKET",
+              "value": "arp-video-renders",
+              "type": "string"
+            },
+            {
+              "id": "8ea1f554-319f-44a6-96c8-0fb7aea71e7e",
+              "name": "R2_PREFIX",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ef3572bf-1817-4990-9858-c3529bbd0fb0",
+      "name": "Set Manifest",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2528,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "9af4ba8a-1787-4931-8848-464e685046e6",
+      "name": "StrategyAgent (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1632,
+        80
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "iF7LYwDlfgvrprDp",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const content = $json?.body?.choices?.[0]?.message?.content ?? $json?.choices?.[0]?.message?.content;\nif (!content) throw new Error(\"Missing OpenAI response content (Strategy)\");\nconst strategy = JSON.parse(content);\nreturn [{...$json, strategy, videoTitle: strategy.title}];\n"
+      },
+      "id": "339a7c5c-e77d-4113-b803-cdf76438fb5f",
+      "name": "Parse Strategy JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1392,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "26d1ef4e-9159-418e-9d91-61d3c8fe6dc8",
+      "name": "OutlineAgent (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1136,
+        80
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "iF7LYwDlfgvrprDp",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const content = $json?.body?.choices?.[0]?.message?.content ?? $json?.choices?.[0]?.message?.content;\nif (!content) throw new Error(\"Missing OpenAI response content (Outline)\");\nconst outline = JSON.parse(content);\nreturn [{...$json, outline}];\n"
+      },
+      "id": "d65ff80b-a7e6-4d1d-8092-323913604917",
+      "name": "Parse Outline JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "0c8d5f7d-2ba6-490f-b877-f44954978a14",
+      "name": "ScriptAgent (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -640,
+        80
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "iF7LYwDlfgvrprDp",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const content = $json?.body?.choices?.[0]?.message?.content ?? $json?.choices?.[0]?.message?.content;\nif (!content) throw new Error(\"Missing OpenAI response content (Script)\");\nconst scriptObj = JSON.parse(content);\nconst narration = scriptObj.script.map(s => s.narration).join(\"\\n\\n\");\nreturn [{...$json, scriptObj, narration}];\n"
+      },
+      "id": "fe987aef-98cd-4996-b045-9e2b3c0fed3d",
+      "name": "Parse Script JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -384,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "a34bed1a-9d26-4614-a20f-599fafa20a6c",
+      "name": "ComplianceAgent (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -144,
+        80
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "iF7LYwDlfgvrprDp",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const content = $json?.body?.choices?.[0]?.message?.content ?? $json?.choices?.[0]?.message?.content;\nif (!content) throw new Error(\"Missing OpenAI response content (Compliance)\");\nconst compliance = JSON.parse(content);\nlet script = $json.scriptObj.script;\nif (compliance.fixes?.length) {\n  for (const f of compliance.fixes) {\n    const i = script.findIndex(s => s.id === f.sceneId);\n    if (i >= 0) script[i].narration = f.with;\n  }\n}\nconst narration = script.map(s => s.narration).join(\"\\n\\n\");\nreturn [{...$json, compliance, scriptObj: {...$json.scriptObj, script}, narration}];\n"
+      },
+      "id": "3e9639f1-a54c-48c1-acc0-ae05b5208eac",
+      "name": "Apply Compliance Fixes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        112,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.compliance.pass }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "isTrue"
+              },
+              "id": "4ae94bc8-ac0b-4056-898c-74186f16616c"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "91c0828b-24d7-4a10-a5da-d4ccd3783f46",
+      "name": "Compliance Pass?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        368,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/speech",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "71115a6a-422f-446b-8663-825ac8bed0be",
+      "name": "TTS Voiceover (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        624,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "iF7LYwDlfgvrprDp",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "={{ $json.r2Bucket }}",
+        "fileName": "={{ $json.r2Prefix + '/audio/vo.mp3' }}",
+        "binaryPropertyName": "voiceover",
+        "additionalFields": {}
+      },
+      "id": "4353448d-7fcc-4d73-9b16-f7731024a081",
+      "name": "R2 Upload Voiceover (mp3)",
+      "type": "n8n-nodes-base.s3",
+      "typeVersion": 1,
+      "position": [
+        880,
+        0
+      ],
+      "credentials": {
+        "s3": {
+          "id": "Y0tHIsVRv2EDCK7J",
+          "name": "S3 account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/transcriptions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "0682a80e-d7bc-4193-8dfc-67b30923dd57",
+      "name": "Whisper Captions (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        624,
+        160
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "iF7LYwDlfgvrprDp",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "5c12ddb9-f3ce-4efc-8add-b9d4de648021",
+      "name": "Set Captions SRT",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        880,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "jsonToBinary",
+        "destinationKey": "captionsbin",
+        "options": {
+          "fileName": "captions.srt",
+          "mimeType": "text/plain"
+        }
+      },
+      "id": "4f043e77-320b-4771-93c2-0cef73134554",
+      "name": "Captions Text \u2192 Binary",
+      "type": "n8n-nodes-base.moveBinaryData",
+      "typeVersion": 1,
+      "position": [
+        1136,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "={{ $json.r2Bucket }}",
+        "fileName": "={{ $json.r2Prefix + '/captions/captions.srt' }}",
+        "binaryPropertyName": "captionsbin",
+        "additionalFields": {}
+      },
+      "id": "f5cd3264-610f-4491-88a7-a2e9b6045e46",
+      "name": "R2 Upload Captions (srt)",
+      "type": "n8n-nodes-base.s3",
+      "typeVersion": 1,
+      "position": [
+        1408,
+        160
+      ],
+      "credentials": {
+        "s3": {
+          "id": "Y0tHIsVRv2EDCK7J",
+          "name": "S3 account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const props = {brand:$json.brand, theme:$json.theme, title:$json.videoTitle, scenes:$json.scriptObj.script}; return [{...$json, propsLong: JSON.stringify(props)}];"
+      },
+      "id": "ba734971-0f97-4666-9503-5947390f5bc7",
+      "name": "Build Remotion Props (Long)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1136,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "jsonToBinary",
+        "destinationKey": "propsbin",
+        "options": {
+          "fileName": "props.long.json",
+          "mimeType": "application/json"
+        }
+      },
+      "id": "7ae72709-be4a-43d4-baad-85916fd1fd4d",
+      "name": "Props Text \u2192 Binary",
+      "type": "n8n-nodes-base.moveBinaryData",
+      "typeVersion": 1,
+      "position": [
+        1408,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "={{ $json.r2Bucket }}",
+        "fileName": "={{ $json.r2Prefix + '/render/props.long.json' }}",
+        "binaryPropertyName": "propsbin",
+        "additionalFields": {}
+      },
+      "id": "46714679-fc36-46b9-a6b6-084649d12546",
+      "name": "R2 Upload Props (long.json)",
+      "type": "n8n-nodes-base.s3",
+      "typeVersion": 1,
+      "position": [
+        1664,
+        0
+      ],
+      "credentials": {
+        "s3": {
+          "id": "Y0tHIsVRv2EDCK7J",
+          "name": "S3 account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "479bde4a-9501-49b0-8cbb-58d5d5d949bb",
+      "name": "Merge After Uploads",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        1888,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.renderApiBase + '/render/long' }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {
+          "timeout": 2100000
+        }
+      },
+      "id": "0bf2bacb-f9eb-424f-87f9-9d3c06b77eb9",
+      "name": "Render Long (Render.com API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2128,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $json.body || $json;\nconst videoUrl = r.signed?.videoUrl;\nconst logUrl = r.signed?.logUrl;\nif (!videoUrl) throw new Error(\"Render API did not return signed.videoUrl\");\n\nconst blocks = $json.compliance?.requiredBlocks || {};\nconst disclosure = [\n  blocks.ftc || \"Disclosure: Some links may be affiliate links. I may earn a commission at no extra cost to you.\",\n  blocks.education || \"Educational purposes only. Not legal, tax, or financial advice.\",\n  blocks.ai || \"This video uses AI-assisted narration and production tools.\",\n  blocks.fairHousing || \"Fair Housing: We do not express preferences or limitations for protected classes.\"\n].join(\"\\n\");\n\nconst title = $json.videoTitle;\nconst desc = `${disclosure}\\n\\n${$json.strategy?.angle || \"\"}\\n\\n\u2705 Get the Free 2026 AI Toolkit\\n\u2705 Try ARIA\\n\\n#AIRealEstate #RealEstateAutomation #PropTech`;\nconst tags = ($json.strategy?.keywords || []).slice(0,10);\n\nreturn [{\n  ...$json,\n  render: r,\n  videoUrl,\n  logUrl,\n  youtubeTitle: title,\n  youtubeDescription: desc,\n  youtubeTags: tags,\n  privacyStatus: \"private\",\n  categoryId: \"28\"\n}];\n"
+      },
+      "id": "d19bab45-b5b9-430e-b61d-75db78ac6fc3",
+      "name": "Prepare YouTube Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2368,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "#video-qa-approval"
+        },
+        "messageType": "block",
+        "blocksUi": "=[\n  {\"type\":\"header\",\"text\":{\"type\":\"plain_text\",\"text\":\"\ud83c\udfac ARP VIDEO READY FOR QA\"}},\n  {\"type\":\"section\",\"fields\":[\n    {\"type\":\"mrkdwn\",\"text\":\"*Run ID:*\\n{{ $json.runId }}\"},\n    {\"type\":\"mrkdwn\",\"text\":\"*Title:*\\n{{ $json.youtubeTitle }}\"}\n  ]},\n  {\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*Signed Video:*\\n<{{ $json.videoUrl }}|Open Rendered MP4>\\n*Logs:*\\n<{{ $json.logUrl }}|Open Render Log>\"}},\n  {\"type\":\"divider\"},\n  {\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"Approve to upload to YouTube (private). Reject to stop.\"}},\n  {\"type\":\"actions\",\"elements\":[\n    {\"type\":\"button\",\"text\":{\"type\":\"plain_text\",\"text\":\"\u2705 Approve\"},\"style\":\"primary\",\"value\":\"approved\",\"action_id\":\"approve_video\"},\n    {\"type\":\"button\",\"text\":{\"type\":\"plain_text\",\"text\":\"\u274c Reject\"},\"style\":\"danger\",\"value\":\"rejected\",\"action_id\":\"reject_video\"}\n  ]}\n]",
+        "text": "ARP video ready for QA",
+        "otherOptions": {}
+      },
+      "id": "aaa09250-0e34-438f-91a4-ce28d6c003c8",
+      "name": "Send QA Approval Request (Slack)",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        2592,
+        80
+      ],
+      "webhookId": "76a6e128-acc1-42cf-852d-413ed4195b32",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "qL4IeryFnVZudE32",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resume": "webhook",
+        "limitWaitTime": true,
+        "resumeAmount": 7,
+        "resumeUnit": "days",
+        "options": {}
+      },
+      "id": "45b902f1-212d-461e-ba0f-3d6883a5d31a",
+      "name": "Wait for QA Decision",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2832,
+        80
+      ],
+      "webhookId": "da284a70-c79d-41ac-9ad0-49b5e942cd5a"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "slack-interaction-arp",
+        "options": {}
+      },
+      "id": "83dd7624-672e-4720-98e2-7cd05dea39d1",
+      "name": "Slack Interaction Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        1968,
+        288
+      ],
+      "webhookId": "d308a39c-e7d2-4fd3-b144-0ae3f44ae3ef"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body=$json.body||{};let p=body.payload; if(!p && typeof body==='string' && body.startsWith('payload=')) p=decodeURIComponent(body.slice('payload='.length)); if(!p) throw new Error('Missing Slack payload'); const payload=JSON.parse(p); const status=payload.actions?.[0]?.value; return [{status,payload}];"
+      },
+      "id": "1f58594a-7ec7-4a47-bf03-1de868e40f50",
+      "name": "Parse Slack Approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2208,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WEBHOOK_URL + '/webhook/video-approval-arp' }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "id": "64a1cb84-e0d9-4990-9c84-bd756e60e2e3",
+      "name": "Forward Status to Resume Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2432,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "video-approval-arp",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "ac647ba2-0acd-4296-be99-d766768ab152",
+      "name": "QA Resume Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        2432,
+        288
+      ],
+      "webhookId": "ca7fda69-8c6a-480d-aafd-a50078122ef0"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.body.status }}",
+              "rightValue": "approved",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "id": "feabb7fd-2292-4525-9a63-4ce73f078ce3"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "bf727fa8-9b4b-44da-8941-598554e41626",
+      "name": "Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3072,
+        80
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "24e4a70b-f213-4399-8971-02b288db6fb2",
+      "name": "Merge Metadata Back",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        3296,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.videoUrl }}",
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "id": "b8803b3f-ec28-4126-927d-ad54fb6b9667",
+      "name": "Download MP4 (Signed URL)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3536,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "#video-qa-approval"
+        },
+        "text": "=\u274c *VIDEO REJECTED*\\n\\n*Run ID:* {{ $('Set Manifest').item.json.runId }}\\n*Title:* {{ $('Prepare YouTube Metadata').item.json.youtubeTitle }}\\n\\n*Signed Video:* {{ $('Prepare YouTube Metadata').item.json.videoUrl }}\\n*Logs:* {{ $('Prepare YouTube Metadata').item.json.logUrl }}",
+        "otherOptions": {}
+      },
+      "id": "ce2bd114-d4ed-43b7-b66d-c21b5b6e6553",
+      "name": "Notify Rejection (Slack)",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        3296,
+        208
+      ],
+      "webhookId": "bcc979e9-2ca5-44be-8126-38211bedf5af",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "qL4IeryFnVZudE32",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{$json.renderApiBase + '/health'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 120000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -1872,
+        80
+      ],
+      "id": "347a1f6f-245e-42de-9272-ff21b31d58d1",
+      "name": "HTTP Request",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "maxTries": 5
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "upload",
+        "title": "={{ $json.youtubeTitle }}",
+        "regionCode": "US",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [
+        3840,
+        176
+      ],
+      "id": "e4c7dae4-7e45-45b5-9b4d-a648cdeb30e4",
+      "name": "Upload a video1",
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "8NmKVwFt99D4b2An",
+          "name": "YouTube account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{$json.renderApiBase + '/health'}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -2320,
+        80
+      ],
+      "id": "f6dfca54-bf40-4f8a-b361-717ad7df572e",
+      "name": "HTTP Request1",
+      "retryOnFail": false,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "23790da5-65cf-47c1-b59b-09e78628e5d4",
+              "leftValue": "={{$json.statusCode}}\n",
+              "rightValue": "=200\n",
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -2112,
+        80
+      ],
+      "id": "f44c187e-b9ac-455d-99ec-86f7e95b0781",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "amount": 10
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -1856,
+        224
+      ],
+      "id": "cd618549-2455-46e4-a190-ff3cc895d8c1",
+      "name": "Wait",
+      "webhookId": "e7b9f24b-576a-4c52-a6f1-807790752d21"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Cron Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Manifest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Manifest": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "StrategyAgent (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "Parse Strategy JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Strategy JSON": {
+      "main": [
+        [
+          {
+            "node": "OutlineAgent (OpenAI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OutlineAgent (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "Parse Outline JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Outline JSON": {
+      "main": [
+        [
+          {
+            "node": "ScriptAgent (OpenAI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ScriptAgent (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "Parse Script JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Script JSON": {
+      "main": [
+        [
+          {
+            "node": "ComplianceAgent (OpenAI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ComplianceAgent (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "Apply Compliance Fixes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Compliance Fixes": {
+      "main": [
+        [
+          {
+            "node": "Compliance Pass?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compliance Pass?": {
+      "main": [
+        [
+          {
+            "node": "TTS Voiceover (OpenAI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TTS Voiceover (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "R2 Upload Voiceover (mp3)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Whisper Captions (OpenAI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Whisper Captions (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "Set Captions SRT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Captions SRT": {
+      "main": [
+        [
+          {
+            "node": "Captions Text \u2192 Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Captions Text \u2192 Binary": {
+      "main": [
+        [
+          {
+            "node": "R2 Upload Captions (srt)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "R2 Upload Voiceover (mp3)": {
+      "main": [
+        [
+          {
+            "node": "Build Remotion Props (Long)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Remotion Props (Long)": {
+      "main": [
+        [
+          {
+            "node": "Props Text \u2192 Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Props Text \u2192 Binary": {
+      "main": [
+        [
+          {
+            "node": "R2 Upload Props (long.json)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "R2 Upload Props (long.json)": {
+      "main": [
+        [
+          {
+            "node": "Merge After Uploads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "R2 Upload Captions (srt)": {
+      "main": [
+        [
+          {
+            "node": "Merge After Uploads",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge After Uploads": {
+      "main": [
+        [
+          {
+            "node": "Render Long (Render.com API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render Long (Render.com API)": {
+      "main": [
+        [
+          {
+            "node": "Prepare YouTube Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare YouTube Metadata": {
+      "main": [
+        [
+          {
+            "node": "Send QA Approval Request (Slack)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge Metadata Back",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Send QA Approval Request (Slack)": {
+      "main": [
+        [
+          {
+            "node": "Wait for QA Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Interaction Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Slack Approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Slack Approval": {
+      "main": [
+        [
+          {
+            "node": "Forward Status to Resume Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for QA Decision": {
+      "main": [
+        [
+          {
+            "node": "Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approved?": {
+      "main": [
+        [
+          {
+            "node": "Merge Metadata Back",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Rejection (Slack)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Metadata Back": {
+      "main": [
+        [
+          {
+            "node": "Download MP4 (Signed URL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "StrategyAgent (OpenAI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download MP4 (Signed URL)": {
+      "main": [
+        [
+          {
+            "node": "Upload a video1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "84a3dc18-17b9-40cb-864b-ba985ac32506",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fa57cd8bf87d2ef8598f0e0ac0a0aa00bfb4f0a4b9522b618994acafa0ec2478"
+  },
+  "id": "Wr2Oa95EldeLZpym",
+  "tags": []
+}

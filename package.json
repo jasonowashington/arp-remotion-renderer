@@ -1,0 +1,10 @@
+{
+  "name": "automated-realty-playbook-render-remotion",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "build": "npm run build -w apps/render-service && npm run build -w packages/remotion-video",
+    "dev:service": "npm run dev -w apps/render-service",
+    "start:service": "npm run start -w apps/render-service"
+  }
+}
