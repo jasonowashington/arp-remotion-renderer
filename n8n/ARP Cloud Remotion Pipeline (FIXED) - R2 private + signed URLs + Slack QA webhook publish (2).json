@@ -1,0 +1,1671 @@
+{
+  "name": "ARP Cloud Remotion Pipeline (FIXED) - R2 private + signed URLs + Slack QA webhook publish",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyWeek",
+              "hour": 9,
+              "weekday": "MON"
+            },
+            {
+              "mode": "everyWeek",
+              "hour": 9,
+              "weekday": "THU"
+            }
+          ]
+        }
+      },
+      "id": "039d46f2-5388-4ed1-927f-2be687ad00ec",
+      "name": "Cron Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        -4096,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0710b038-603b-4d69-a46d-8cf328dbfd4e",
+              "name": "renderApiBase",
+              "value": "https://arp-remotion-renderer.onrender.com",
+              "type": "string"
+            },
+            {
+              "id": "cca93c79-91dc-4b22-bd3d-d7d974750410",
+              "name": "r2Bucket",
+              "value": "arp-video-renders",
+              "type": "string"
+            },
+            {
+              "id": "5c7144c2-bb41-4f61-9a0c-6ba8bbc13eb5",
+              "name": "r2Prefix",
+              "value": "={{ 'runs/' + $json.runId }}\n",
+              "type": "string"
+            },
+            {
+              "id": "78098707-934e-4c18-9a0c-713978af8b9b",
+              "name": "runId",
+              "value": "={{ 'arp_' + $now.toFormat(\"yyyyLLdd_HHmmss\") }}\n",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "f502bbb9-3eff-40fc-886d-34b8a31665cc",
+      "name": "Set Manifest",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3856,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"model\": \"gpt-4o-mini\",\n  \"temperature\": 0.4,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are ARP StrategyAgent for the Automated Realty Playbook YouTube channel. Return ONLY valid JSON. No markdown. No commentary.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Create a video strategy object for a faceless YouTube video about using AI in real estate. Output JSON with keys: topic, targetAudience, valueProposition, tone, videoLengthSeconds, keyPoints (string[]), complianceNotes (string[]), visualStyleNotes (string[]).\"\n    }\n  ],\n  \"response_format\": {\n    \"type\": \"json_object\"\n  }\n}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "e56cf68b-5ce5-45df-b276-2a8f5da2f582",
+      "name": "StrategyAgent (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -3376,
+        -304
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "iF7LYwDlfgvrprDp",
+          "name": "Header Auth account 2"
+        },
+        "openAiApi": {
+          "id": "sFXlYidzMmNMnAhG",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const content = $json.choices?.[0]?.message?.content;\nif (!content) throw new Error(\"Missing OpenAI content\");\n\nlet parsed;\ntry {\n  parsed = JSON.parse(content);\n} catch (e) {\n  throw new Error(\"StrategyAgent did not return valid JSON: \" + content);\n}\n\nreturn [{ json: { ...$json, strategy: parsed } }];"
+      },
+      "id": "990d844a-a557-4564-9451-cd32802141ae",
+      "name": "Parse Strategy JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3136,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"temperature\": 0.4,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are ARP OutlineAgent. Return ONLY valid JSON. No markdown. No commentary.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Using this strategy JSON: {{$json.strategy}}, produce a detailed outline for a faceless YouTube video. Output JSON with keys: title, hook, sections (array of {title, bullets:string[]}), cta.\"\n    }\n  ],\n  \"response_format\": {\n    \"type\": \"json_object\"\n  }\n}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "49dc4db9-958b-41b2-9f6a-ae58cc193efe",
+      "name": "OutlineAgent (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2896,
+        -304
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "iF7LYwDlfgvrprDp",
+          "name": "Header Auth account 2"
+        },
+        "openAiApi": {
+          "id": "sFXlYidzMmNMnAhG",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const content = $json.choices?.[0]?.message?.content;\nif (!content) throw new Error(\"Missing OpenAI content\");\n\nlet parsed;\ntry {\n  parsed = JSON.parse(content);\n} catch (e) {\n  throw new Error(\"OutlineAgent did not return valid JSON: \" + content);\n}\n\nreturn [{ json: { ...$json, outline: parsed } }];"
+      },
+      "id": "60b684a3-655a-421f-b977-d5f193b94559",
+      "name": "Parse Outline JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2656,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "function extractText(j) {\n  return (\n    j?.output?.[0]?.content?.[0]?.text ??\n    j?.message?.content ??\n    j?.choices?.[0]?.message?.content ??\n    j?.body?.choices?.[0]?.message?.content ??\n    null\n  );\n}\n\nconst content = extractText($json);\nif (!content) throw new Error(\"Missing ScriptAgent content\");\n\nlet scriptPack;\ntry {\n  scriptPack = JSON.parse(content);\n} catch (e) {\n  throw new Error(\"ScriptAgent returned invalid JSON: \" + content);\n}\n\n// basic validation so you don't pass junk downstream\nif (!scriptPack.title || !scriptPack.narration) {\n  throw new Error(\"scriptPack.title or scriptPack.narration missing/empty\");\n}\n\nreturn [{\n  json: {\n    ...$json,\n    scriptPack\n  }\n}];"
+      },
+      "id": "c2d423bf-bd19-401d-9f7a-6956710c6e89",
+      "name": "Parse Script JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1632,
+        -304
+      ],
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "jsCode": "const compliance = $json.compliance;\nconst scriptPack = $json.scriptPack;\n\nif (!compliance) throw new Error(\"Missing compliance on input\");\nif (!scriptPack) throw new Error(\"Missing scriptPack on input\");\n\n// Validate compliance structure\nif (typeof compliance.pass !== \"boolean\") {\n  throw new Error(`compliance.pass must be boolean, got: ${typeof compliance.pass}`);\n}\nif (!Array.isArray(compliance.issues)) {\n  compliance.issues = [];\n}\nif (!Array.isArray(compliance.fixes)) {\n  compliance.fixes = [];\n}\n\nconst fixed = { ...scriptPack };\n\n// Ensure affiliateDisclosure exists\nif (typeof fixed.affiliateDisclosure !== \"string\") fixed.affiliateDisclosure = \"\";\n\n// Apply field-based fixes from ComplianceAgent\nfor (const f of (compliance.fixes || [])) {\n  if (!f?.field || typeof f.with !== \"string\") continue;\n\n  if (f.field === \"disclaimer\") {\n    fixed.disclaimer = [fixed.disclaimer || \"\", f.with].filter(Boolean).join(\" \").trim();\n  } else if (f.field === \"affiliateDisclosure\") {\n    fixed.affiliateDisclosure = f.with.trim();\n  } else if (f.field === \"narration\") {\n    // Minimal safe approach: append (don’t overwrite your whole narration)\n    fixed.narration = [fixed.narration || \"\", f.with].filter(Boolean).join(\" \").trim();\n  }\n}\n\n// Make sure requiredDisclaimers are present in disclaimer\nconst req = Array.isArray(compliance.requiredDisclaimers) ? compliance.requiredDisclaimers : [];\nfor (const d of req) {\n  if (typeof d === \"string\" && d.trim() && !String(fixed.disclaimer || \"\").includes(d.trim())) {\n    fixed.disclaimer = [fixed.disclaimer || \"\", d.trim()].filter(Boolean).join(\" \").trim();\n  }\n}\n\n// Make sure affiliate disclosure present if compliance wants it\nif (compliance.affiliateDisclosure && !fixed.affiliateDisclosure.trim()) {\n  fixed.affiliateDisclosure = String(compliance.affiliateDisclosure).trim();\n}\n\n// After applying all fixes, update pass status to true since fixes have been applied\nconst updatedCompliance = {\n  ...compliance,\n  pass: true  // Fixes have been applied, so mark as passing\n};\n\nreturn [{\n  json: {\n    ...$json,\n    scriptPack: fixed,\n    compliance: updatedCompliance\n  }\n}];"
+      },
+      "id": "d610dc4a-5e9c-42e4-a9d2-c6512fc3e9fb",
+      "name": "Apply Compliance Fixes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -352,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "838a1cb2-062d-46fa-83eb-33b9fac18ac0",
+              "leftValue": "={{ $json.compliance.pass }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "29c02ead-8a5e-452a-8a79-a3cec37c7019",
+      "name": "Compliance Pass?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -112,
+        -304
+      ],
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/speech",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  model: \"gpt-4o-mini-tts\",\n  voice: \"alloy\",\n  format: \"mp3\",\n  input: $json.scriptPack.narration\n} }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "voiceover"
+            }
+          },
+          "timeout": 300000
+        }
+      },
+      "id": "64fb8842-e6e5-4ce9-81fc-08d006a45732",
+      "name": "TTS Voiceover (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        -384
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "iF7LYwDlfgvrprDp",
+          "name": "Header Auth account 2"
+        },
+        "openAiApi": {
+          "id": "sFXlYidzMmNMnAhG",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/transcriptions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "whisper-1"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "voiceover"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "text",
+              "outputPropertyName": "srt"
+            }
+          },
+          "timeout": 300000
+        }
+      },
+      "id": "f6c37eeb-b0ac-419f-85dd-c3ac61dc1805",
+      "name": "Whisper Captions (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        -208
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "iF7LYwDlfgvrprDp",
+          "name": "Header Auth account 2"
+        },
+        "openAiApi": {
+          "id": "sFXlYidzMmNMnAhG",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3e7d087a-4e06-4ee3-a7f9-f875c89493a6",
+              "name": "captionsSrt",
+              "value": "={{ $json.body || $json }}",
+              "type": "string"
+            },
+            {
+              "id": "bc6dc470-184c-4c82-9af1-041ee32165a8",
+              "name": "bucket",
+              "value": "={{ $json.r2Bucket }}",
+              "type": "string"
+            },
+            {
+              "id": "fc1bc8ef-adb2-4cbe-bb35-524d1d293166",
+              "name": "captionsbin",
+              "value": "={{ $json.r2Prefix + '/captions/captions.srt' }}",
+              "type": "binary"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7daf52e1-d742-4ed8-915e-bd9b7d28f16c",
+      "name": "Set Captions SRT",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        720,
+        -224
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "jsonToBinary",
+        "destinationKey": "captionsbin",
+        "options": {
+          "fileName": "captions.srt",
+          "mimeType": "text/plain"
+        }
+      },
+      "id": "b424e664-0630-4d5c-94b9-60a306d588c8",
+      "name": "Captions Text → Binary",
+      "type": "n8n-nodes-base.moveBinaryData",
+      "typeVersion": 1,
+      "position": [
+        960,
+        -224
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const outline = $json.outline;\nconst scriptPack = $json.scriptPack;\n\nif (!outline) throw new Error(\"Missing outline\");\nif (!scriptPack) throw new Error(\"Missing scriptPack\");\n\nconst scenes = (outline.sections || []).map((s, idx) => ({\n  type: \"panel\",\n  headline: s.title || `Section ${idx + 1}`,\n  bullets: Array.isArray(s.bullets) ? s.bullets : [],\n  durationSeconds: 10\n}));\n\nconst props = {\n  video: {\n    title: outline.title || scriptPack.title || \"Automated Realty Playbook\",\n    subtitle: \"Luxury-tech AI real estate automation\",\n    theme: \"hybrid-luxury-tech\"\n  },\n  scenes,\n  audio: {\n    voiceoverKey: `${$json.r2Prefix}/audio/vo.mp3`,\n    narration: scriptPack.narration\n  }\n};\n\n// Store as text so MoveBinaryData can convert to propsbin\nreturn [{ json: { ...$json, propsText: JSON.stringify(props) } }];\n"
+      },
+      "id": "3ef1173f-d9b0-4c81-af61-c6fa61879f06",
+      "name": "Build Remotion Props (Long)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        -384
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "jsonToBinary",
+        "destinationKey": "propsbin",
+        "options": {
+          "fileName": "props.long.json",
+          "mimeType": "application/json"
+        }
+      },
+      "id": "ae6947a0-d957-4bdd-ab3e-6edd87b3ce79",
+      "name": "Props Text → Binary",
+      "type": "n8n-nodes-base.moveBinaryData",
+      "typeVersion": 1,
+      "position": [
+        960,
+        -384
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "=Merge (wait mode)",
+        "mergeByFields": {
+          "values": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "id": "5384e567-673b-4775-9bd5-ad291ee7513d",
+      "name": "Merge After Uploads",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.renderApiBase + '/render/long' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  runId: $json.runId,\n  composition: \"ARP_Long_16x9\",\n  audioKey: $json.r2Prefix + \"/audio/vo.mp3\",\n  propsKey: $json.r2Prefix + \"/render/props.long.json\",\n  captionsKey: $json.r2Prefix + \"/captions/captions.srt\",\n  outputKey: $json.r2Prefix + \"/final/final_16x9.mp4\",\n  logKey: $json.r2Prefix + \"/logs/render_long.log\"\n} }}",
+        "options": {
+          "timeout": 2100000
+        }
+      },
+      "id": "834e3af5-8c46-4e0d-8582-411ee873683e",
+      "name": "Render Long (Render.com API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const outline = $json.outline;\nconst strategy = $json.strategy;\nconst scriptPack = $json.scriptPack;\n\nconst titleBase = outline?.title || strategy?.topic || \"Automated Realty Playbook\";\nconst youtubeTitle = titleBase.length > 95 ? titleBase.slice(0, 95) : titleBase;\n\nconst affiliateDisclosure =\n  \"Disclosure: Some links may be affiliate links. I may earn a commission at no extra cost to you.\";\n\nconst youtubeDescription = [\n  (outline?.hook ? outline.hook + \"\\n\" : \"\"),\n  \"In this video, we break down practical ways to use AI to automate your real estate workflow—lead follow-up, listings, content, and deal analysis.\",\n  \"\",\n  \"✅ Subscribe for more AI + real estate automation.\",\n  \"\",\n  affiliateDisclosure,\n  \"\",\n  (scriptPack?.disclaimer || \"Not legal, tax, or financial advice. Consult a professional.\")\n].join(\"\\n\");\n\nconst youtubeTags = [\n  \"ai real estate\",\n  \"real estate automation\",\n  \"chatgpt real estate\",\n  \"real estate ai tools\",\n  \"automated realty playbook\"\n];\n\nreturn [{\n  json: {\n    ...$json,\n    youtubeTitle,\n    youtubeDescription,\n    youtubeTags,\n    hashtags: [\"#AI\", \"#RealEstate\", \"#Automation\"],\n    pinnedComment: \"Want the free AI toolkit? Comment 'TOOLKIT' and I’ll send it.\",\n    affiliateDisclosure,\n    privacyStatus: \"private\",\n    categoryId: \"26\"\n  }\n}];"
+      },
+      "id": "38677802-1d22-4faa-b93f-db27e48d4b61",
+      "name": "Prepare YouTube Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const manifest = {\n  runId: $json.runId,\n  r2Bucket: $json.r2Bucket,\n  r2Prefix: $json.r2Prefix,\n  videoUrl: $json.videoUrl,\n  logUrl: $json.logUrl,\n  youtube: {\n    title: $json.youtubeTitle,\n    description: $json.youtubeDescription,\n    tags: $json.youtubeTags,\n    privacyStatus: $json.privacyStatus,\n    categoryId: $json.categoryId\n  }\n};\nreturn [{...$json, manifestText: JSON.stringify(manifest)}];\n"
+      },
+      "id": "8138ede0-8731-414a-abb5-04ad807e30cd",
+      "name": "Build Run Manifest JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "jsonToBinary",
+        "destinationKey": "manifestbin",
+        "options": {
+          "fileName": "manifest.json",
+          "mimeType": "application/json"
+        }
+      },
+      "id": "413274de-a0d2-472e-bff0-23e1e4fb05f2",
+      "name": "Manifest Text → Binary",
+      "type": "n8n-nodes-base.moveBinaryData",
+      "typeVersion": 1,
+      "position": [
+        2400,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "slack-interaction-arp",
+        "options": {}
+      },
+      "id": "85473656-dfb2-4888-aa0a-052e86833639",
+      "name": "Slack Interaction Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        1424,
+        -80
+      ],
+      "webhookId": "c8f66f85-740c-464a-ab7c-f6bd64c1335f"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || {};\nlet payloadStr = body.payload;\nif (!payloadStr && typeof body === 'string' && body.startsWith('payload=')) payloadStr = decodeURIComponent(body.slice('payload='.length));\nif (!payloadStr) throw new Error(\"Missing Slack interactivity payload\");\nconst payload = JSON.parse(payloadStr);\nconst raw = payload.actions?.[0]?.value || \"\";\nconst [status, runId] = raw.split(\"|\");\nif (!status || !runId) throw new Error(\"Missing status/runId in Slack button value\");\nreturn [{status, runId, payload}];\n"
+      },
+      "id": "789c4614-a682-44bf-8b5f-05873d048420",
+      "name": "Parse Slack Approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "approved",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "id": "3db2e8a8-d793-4a9b-9dd0-a0b298ac03ff"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ed62b78f-3bed-44f5-8565-bca52bfe9edf",
+      "name": "Approved? (from Slack)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1904,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "sourceKey": "manifestfile",
+        "options": {}
+      },
+      "id": "645e799d-ea04-4805-85e7-0ace6f3f6b5b",
+      "name": "Manifest Binary → JSON",
+      "type": "n8n-nodes-base.moveBinaryData",
+      "typeVersion": 1,
+      "position": [
+        2384,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const m = $json;\nconst manifest = m.json || m; // depending on node output\nconst data = manifest;\nreturn [{\n  runId: data.runId,\n  videoUrl: data.videoUrl,\n  logUrl: data.logUrl,\n  youtubeTitle: data.youtube.title,\n  youtubeDescription: data.youtube.description,\n  youtubeTags: data.youtube.tags,\n  privacyStatus: data.youtube.privacyStatus,\n  categoryId: data.youtube.categoryId\n}];\n"
+      },
+      "id": "3bbd5fb8-0de2-4536-bd75-9664c9988e91",
+      "name": "Extract Manifest Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2624,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.videoUrl }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "file",
+              "outputPropertyName": "video"
+            }
+          },
+          "timeout": 600000
+        }
+      },
+      "id": "cdc36dea-a092-48d6-b926-eaa05950f626",
+      "name": "Download MP4 (Signed URL)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2864,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "upload",
+        "title": "={{ $json.youtubeTitle }}",
+        "regionCode": "US",
+        "categoryId": "={{ $json.categoryId }}",
+        "options": {
+          "description": "={{ $json.youtubeDescription }}",
+          "privacyStatus": "={{ $json.privacyStatus }}",
+          "tags": "={{ $json.youtubeTags }}"
+        }
+      },
+      "id": "8c7e507d-389f-41b8-824a-a44843d9c27b",
+      "name": "Upload to YouTube (private)",
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [
+        3104,
+        -160
+      ],
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "8NmKVwFt99D4b2An",
+          "name": "YouTube account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "#video-qa-approval"
+        },
+        "text": "=❌ *VIDEO REJECTED*\\n\\n*Run ID:* {{ $json.runId }}\\n\\nNo YouTube upload performed.",
+        "otherOptions": {}
+      },
+      "id": "cdb3af3c-8810-4689-8e8a-26951c79ff2e",
+      "name": "Notify Rejection (Slack)",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        2144,
+        16
+      ],
+      "webhookId": "6e144159-0722-4b2f-b0ef-3c09b217aa67",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "qL4IeryFnVZudE32",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.renderApiBase + '/health' }}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "c0d55010-5276-4ceb-86dc-a3f8aeca3dcc",
+      "name": "Render Health Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -3616,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -608,
+        -288
+      ],
+      "id": "9d53cd43-20d2-4bad-a27c-1dbef7a2778a",
+      "name": "Merge Script + Compliance"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "#video-qa-approval"
+        },
+        "messageType": "block",
+        "blocksUi": "=[\n  {\"type\":\"header\",\"text\":{\"type\":\"plain_text\",\"text\":\"🎬 ARP VIDEO READY FOR QA\"}},\n  {\"type\":\"section\",\"fields\":[\n    {\"type\":\"mrkdwn\",\"text\":\"*Run ID:*\\n{{ $json.runId }}\"},\n    {\"type\":\"mrkdwn\",\"text\":\"*Title:*\\n{{ $json.youtubeTitle }}\"}\n  ]},\n  {\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*Signed Video:*\\n<{{ $json.videoUrl }}|Open Rendered MP4>\\n*Logs:*\\n<{{ $json.logUrl }}|Open Render Log>\"}},\n  {\"type\":\"divider\"},\n  {\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"Approve to publish to YouTube (private). Reject to stop.\"}},\n  {\"type\":\"actions\",\"elements\":[\n    {\"type\":\"button\",\"text\":{\"type\":\"plain_text\",\"text\":\"✅ Approve\"},\"style\":\"primary\",\"value\":\"approved|{{ $json.runId }}\",\"action_id\":\"approve_video\"},\n    {\"type\":\"button\",\"text\":{\"type\":\"plain_text\",\"text\":\"❌ Reject\"},\"style\":\"danger\",\"value\":\"rejected|{{ $json.runId }}\",\"action_id\":\"reject_video\"}\n  ]}\n]",
+        "text": "ARP video ready for QA",
+        "otherOptions": {}
+      },
+      "id": "04b599d4-0324-4c60-b066-3c183fe94117",
+      "name": "Send QA Request Approval (Slack)",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        2880,
+        -304
+      ],
+      "webhookId": "46e22c95-c468-4fac-a9a3-1e6d43b99e07",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "qL4IeryFnVZudE32",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const attempts = ($json.complianceAttempts ?? 0) + 1;\nconst max = 3;\n\nreturn [{\n  json: {\n    ...$json,\n    complianceAttempts: attempts,\n    complianceMax: max\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        96,
+        -176
+      ],
+      "id": "62253edc-2dd5-4412-8b2c-0355780cd38e",
+      "name": "Increment Compliance Attempt"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "90a38724-d48f-48f1-badd-af634b266e85",
+              "leftValue": "={{$json.complianceAttempts <= $json.complianceMax}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        240,
+        16
+      ],
+      "id": "6a777383-1115-4f27-b2eb-1e41eef97094",
+      "name": "Retries Left?",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "function extractText(j) {\n  return (\n    j?.output?.[0]?.content?.[0]?.text ??\n    j?.output_text ??\n    j?.message?.content ??\n    j?.choices?.[0]?.message?.content ??\n    j?.body?.choices?.[0]?.message?.content ??\n    j?.data?.choices?.[0]?.message?.content ??\n    null\n  );\n}\n\nconst content = extractText($json);\nif (!content) {\n  throw new Error(\"Missing Rewrite Script OpenAI content (no text found in known fields)\");\n}\n\nlet scriptPack;\ntry {\n  scriptPack = typeof content === \"string\" ? JSON.parse(content) : content;\n} catch (e) {\n  throw new Error(\"Rewrite Script returned invalid JSON: \" + content);\n}\n\nreturn [{\n  json: {\n    ...$json,\n    scriptPack\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        -16
+      ],
+      "id": "33d002cc-4248-4ef7-8881-38907895fcd9",
+      "name": "Parse Rewritten Script JSON"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0A73PU9BT7",
+          "mode": "list",
+          "cachedResultName": "video-qa-approval"
+        },
+        "messageType": "block",
+        "blocksUi": "=🚫 ARP Compliance failed after {{$json.complianceAttempts}} attempts (max {{$json.complianceMax}})\n\nRunId: {{$json.runId}}\n\nIssues:\n{{ ($json.compliance?.issues || []).join(\"\\n- \") }}\n\nRequired Disclaimers:\n{{ ($json.compliance?.requiredDisclaimers || []).join(\" | \") }}\n",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        464,
+        240
+      ],
+      "id": "2ad3c24a-a869-4caa-9c89-bddcdb763560",
+      "name": "Slack QA Fail (Manual Review)",
+      "webhookId": "f1bf2716-1a57-4060-81f0-0d8a6d770db9",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "qL4IeryFnVZudE32",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an expert compliance editor for a faceless real estate YouTube channel.\n\nYou will receive:\n1) a scriptPack JSON (current draft)\n2) a compliance report listing issues + required disclaimers + affiliate disclosure\n\nTask:\n- Keep the SAME topic, structure, and intent.\n- Only rewrite language that triggers compliance issues (Fair Housing, discriminatory language, claims needing substantiation, platform safety).\n- Add required disclaimers and affiliate disclosure in a professional, concise way.\n- Do NOT add new sections beyond what exists, unless needed for disclaimers.\n- Do NOT remove the CTA; just make it compliant.\n- Output MUST be valid JSON only (no markdown, no commentary).\n"
+            },
+            {
+              "content": "=Rewrite the scriptPack to pass compliance. Keep the SAME topic and structure. Only fix language/disclaimers. Preserve the exact schema.\n\nSchema to preserve:\n{\n  \"title\": string,\n  \"narration\": string,\n  \"onScreenText\": [{\"timestampHint\": string, \"text\": string}],\n  \"brollPrompts\": string[],\n  \"disclaimer\": string,\n  \"affiliateDisclosure\": string\n}\n\nCompliance issues:\n{{ ($json.compliance?.issues || []).join(\" | \") }}\n\nRequired disclaimers:\n{{ ($json.compliance?.requiredDisclaimers || []).join(\" | \") }}\n\nAffiliate disclosure (use if present):\n{{ $json.compliance?.affiliateDisclosure || \"\" }}\n\nCurrent scriptPack JSON:\n{{ JSON.stringify($json.scriptPack) }}\n\nReturn ONLY valid JSON for scriptPack, matching the exact schema above.\n"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        448,
+        -16
+      ],
+      "id": "28661bc7-9806-457b-94c8-93ea7e1e648a",
+      "name": "Rewrite Script (Open AI)",
+      "credentials": {
+        "openAiApi": {
+          "id": "sFXlYidzMmNMnAhG",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are ARP ScriptAgent for a faceless real estate AI YouTube channel.\n\nReturn ONLY valid JSON (one object). No markdown. No commentary.\n\nDo not omit required keys. If uncertain, return empty strings or empty arrays.\n\nYou must strictly follow the schema.\n"
+            },
+            {
+              "content": "=Using this outline JSON, write the full voiceover script.\n\nPreserve the exact schema.\n\nOutline JSON:\n{{ $json.outline }}\n\nReturn a JSON object with EXACT keys:\n\n- title: string\n- narration: string\n- onScreenText: {timestampHint:string, text:string}[]\n- brollPrompts: string[]\n- disclaimer: string\n- affiliateDisclosure: string (empty string if none)\n\nRules:\n- narration should be 700–1100 words.\n- onScreenText should include 8–14 entries.\n- brollPrompts should include 8–14 prompts.\n- disclaimer must be professional and non-legal-advice.\n- Do NOT include any other keys.\n"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "metadata": "{}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        -2128,
+        -304
+      ],
+      "id": "5dc04846-9796-4d48-9964-7064a8a27f3e",
+      "name": "ScriptAgent (OpenAI)",
+      "credentials": {
+        "openAiApi": {
+          "id": "sFXlYidzMmNMnAhG",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are ARP ComplianceAgent for a faceless real estate YouTube channel.\n\nReturn ONLY valid JSON (one object).\nNo markdown.\nNo commentary.\n\nYou must evaluate:\n1) Fair Housing compliance\n2) FTC advertising and affiliate disclosures\n3) Platform-safe language\n4) Claims that require substantiation\n5) Disallowed or discriminatory phrasing\n\nYour job is to propose minimal fixes needed to pass compliance.\n"
+            },
+            {
+              "content": "=Evaluate this scriptPack JSON for compliance.\n\nYou must preserve the schema.\n\nSchema:\n{\n  \"title\": string,\n  \"narration\": string,\n  \"onScreenText\": [{\"timestampHint\": string, \"text\": string}],\n  \"brollPrompts\": string[],\n  \"disclaimer\": string,\n  \"affiliateDisclosure\": string\n}\n\nInput scriptPack JSON:\n{{ $json.scriptPack }}\n\nReturn a JSON object with EXACT keys:\n\n- pass: boolean (true or false, NOT a string \"true\" or \"false\")\n- issues: string[]\n- fixes: { field: \"narration\"|\"disclaimer\"|\"affiliateDisclosure\", with: string }[]\n- requiredDisclaimers: string[]\n- affiliateDisclosure: string (\"\" if none)\n\nRules:\n- Set pass:false if ANY issues, fixes, or required disclaimers are needed.\n- Set pass:true ONLY if zero issues found and the script is perfect as-is (no fixes needed).\n- If Equal Housing Opportunity language is required, add it to requiredDisclaimers and add a fix targeting \"disclaimer\".\n- If FTC affiliate disclosure is required, populate affiliateDisclosure and add a fix targeting \"affiliateDisclosure\".\n- The downstream \"Apply Compliance Fixes\" node will update pass to true after applying all fixes.\n- Minimal edits only.\n- CRITICAL: pass must be a boolean type (true/false), never a string.\n"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        -1280,
+        -128
+      ],
+      "id": "e68bedb3-4ff2-42a9-afa4-54f841b86b3d",
+      "name": "ComplianceAgent",
+      "credentials": {
+        "openAiApi": {
+          "id": "sFXlYidzMmNMnAhG",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "function extractText(j) {\n  return (\n    j?.output?.[0]?.content?.[0]?.text ??          // OpenAI Chat node (common)\n    j?.output_text ??                              // some variants\n    j?.message?.content ??                         // some n8n variants\n    j?.choices?.[0]?.message?.content ??           // legacy chat.completions\n    j?.body?.choices?.[0]?.message?.content ??     // http request sometimes wraps in body\n    j?.data?.choices?.[0]?.message?.content ??     // other wrappers\n    null\n  );\n}\n\nconst content = extractText($json);\nif (!content) {\n  throw new Error(\"Missing ComplianceAgent content (no text found in known fields)\");\n}\n\nlet compliance;\ntry {\n  compliance = typeof content === \"string\" ? JSON.parse(content) : content;\n} catch (e) {\n  throw new Error(\"ComplianceAgent returned invalid JSON: \" + content);\n}\n\n// Validate and normalize the pass field\nif (typeof compliance.pass !== \"boolean\") {\n  // Attempt to coerce common string values\n  if (compliance.pass === \"true\") {\n    compliance.pass = true;\n  } else if (compliance.pass === \"false\") {\n    compliance.pass = false;\n  } else {\n    throw new Error(`compliance.pass must be boolean, got: ${typeof compliance.pass} = ${compliance.pass}`);\n  }\n}\n\n// Log for debugging (remove after testing)\nconsole.log(\"Compliance pass value:\", compliance.pass);\nconsole.log(\"Compliance pass type:\", typeof compliance.pass);\nconsole.log(\"Full compliance object:\", JSON.stringify(compliance, null, 2));\n\n// IMPORTANT: always return { json: { ... } }\nreturn [{\n  json: {\n    ...$json,\n    compliance\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -928,
+        -128
+      ],
+      "id": "59ea7888-b7aa-45fa-8745-93430636c67f",
+      "name": "Parse Compliance JSON",
+      "executeOnce": false,
+      "retryOnFail": false
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate required fields before Render Long\nif (!$json.runId) {\n  throw new Error(\"Missing runId for render request\");\n}\nif (!$json.r2Prefix) {\n  throw new Error(\"Missing r2Prefix for render request\");\n}\n\nconsole.log(\"Validation passed for Render Long. runId:\", $json.runId);\nreturn [$json];"
+      },
+      "id": "49dbedf8-07d9-4f8c-b385-4b410721031f",
+      "name": "Validate Before Render",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate videoUrl before download\nif (!$json.videoUrl) {\n  throw new Error(\"Missing videoUrl from manifest\");\n}\n\n// Check if URL is valid\nconst urlPattern = /^https?:\\/\\/.+/;\nif (!urlPattern.test($json.videoUrl)) {\n  throw new Error(`Invalid videoUrl format: ${$json.videoUrl}`);\n}\n\nconsole.log(\"Validation passed for video download. URL:\", $json.videoUrl);\nreturn [$json];"
+      },
+      "id": "c263de74-8940-499d-b908-42b32ceb70f2",
+      "name": "Validate Before Download MP4",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2752,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Render Health Check').item.json.renderBaseUrl }}/api/r2/upload",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "={{ $json.r2Prefix }}/input/props.json"
+            },
+            {
+              "name": "bucket",
+              "value": "={{ $json.r2Bucket }}"
+            },
+            {
+              "name": "contentType",
+              "value": "application/json"
+            },
+            {
+              "name": "file",
+              "inputDataFieldName": "=propsbin"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1200,
+        -384
+      ],
+      "id": "e3b12fdf-5b1c-4569-b140-695de935e508",
+      "name": "R2 Upload Props (Proxy)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Render Health Check').item.json.renderBaseUrl }}/api/r2/upload",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "={{ $json.r2Prefix }}/audio/vo.mp3"
+            },
+            {
+              "name": "bucket",
+              "value": "={{ $json.r2Bucket }}"
+            },
+            {
+              "name": "contentType",
+              "value": "audio/mpeg"
+            },
+            {
+              "name": "file",
+              "inputDataFieldName": "=data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        480,
+        -384
+      ],
+      "id": "13ebc3a9-a214-4764-afd7-05ce58b909be",
+      "name": "R2 Upload Voiceover (Proxy)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Render Health Check').item.json.renderBaseUrl }}/api/r2/upload",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "={{ $json.r2Prefix }}/captions/en.srt"
+            },
+            {
+              "name": "bucket",
+              "value": "={{ $json.r2Bucket }}"
+            },
+            {
+              "name": "contentType",
+              "value": "text/plain"
+            },
+            {
+              "name": "file",
+              "inputDataFieldName": "=srtbin"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1200,
+        -224
+      ],
+      "id": "c61ce327-0e03-4f6e-b930-b8bb68a8ae26",
+      "name": "R2 Upload Captions (Proxy)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Render Health Check').item.json.renderBaseUrl }}/api/r2/download",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"bucket\": $json.r2Bucket, \"key\": $json.r2Prefix + \"/manifest.json\" } }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2144,
+        -160
+      ],
+      "id": "f9eabc82-c5fb-4fd0-a731-1dfa5760f1af",
+      "name": "R2 Download Manifest (Proxy)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Render Health Check').item.json.renderBaseUrl }}/api/r2/upload",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "={{ $json.r2Prefix }}/manifest.json"
+            },
+            {
+              "name": "bucket",
+              "value": "={{ $json.r2Bucket }}"
+            },
+            {
+              "name": "contentType",
+              "value": "application/json"
+            },
+            {
+              "name": "file",
+              "inputDataFieldName": "=manifestbin"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2640,
+        -304
+      ],
+      "id": "a6aaac01-80a8-4b8b-b771-233a5a733ded",
+      "name": "R2 Upload Manifest (Proxy)"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Cron Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Manifest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Manifest": {
+      "main": [
+        [
+          {
+            "node": "Render Health Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "StrategyAgent (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "Parse Strategy JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Strategy JSON": {
+      "main": [
+        [
+          {
+            "node": "OutlineAgent (OpenAI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OutlineAgent (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "Parse Outline JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Outline JSON": {
+      "main": [
+        [
+          {
+            "node": "ScriptAgent (OpenAI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Script JSON": {
+      "main": [
+        [
+          {
+            "node": "Merge Script + Compliance",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "ComplianceAgent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Compliance Fixes": {
+      "main": [
+        [
+          {
+            "node": "Compliance Pass?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compliance Pass?": {
+      "main": [
+        [
+          {
+            "node": "TTS Voiceover (OpenAI)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Increment Compliance Attempt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TTS Voiceover (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "Whisper Captions (OpenAI)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Whisper Captions (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "Set Captions SRT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Captions SRT": {
+      "main": [
+        [
+          {
+            "node": "Captions Text → Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Captions Text → Binary": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Remotion Props (Long)": {
+      "main": [
+        [
+          {
+            "node": "Props Text → Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Props Text → Binary": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge After Uploads": {
+      "main": [
+        [
+          {
+            "node": "Validate Before Render",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Before Render": {
+      "main": [
+        [
+          {
+            "node": "Render Long (Render.com API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render Long (Render.com API)": {
+      "main": [
+        [
+          {
+            "node": "Prepare YouTube Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare YouTube Metadata": {
+      "main": [
+        [
+          {
+            "node": "Build Run Manifest JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Run Manifest JSON": {
+      "main": [
+        [
+          {
+            "node": "Manifest Text → Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manifest Text → Binary": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Interaction Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Slack Approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Slack Approval": {
+      "main": [
+        [
+          {
+            "node": "Approved? (from Slack)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approved? (from Slack)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Rejection (Slack)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manifest Binary → JSON": {
+      "main": [
+        [
+          {
+            "node": "Extract Manifest Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Manifest Fields": {
+      "main": [
+        [
+          {
+            "node": "Validate Before Download MP4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Before Download MP4": {
+      "main": [
+        [
+          {
+            "node": "Download MP4 (Signed URL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download MP4 (Signed URL)": {
+      "main": [
+        [
+          {
+            "node": "Upload to YouTube (private)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render Health Check": {
+      "main": [
+        [
+          {
+            "node": "StrategyAgent (OpenAI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Script + Compliance": {
+      "main": [
+        [
+          {
+            "node": "Apply Compliance Fixes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Increment Compliance Attempt": {
+      "main": [
+        [
+          {
+            "node": "Retries Left?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retries Left?": {
+      "main": [
+        [
+          {
+            "node": "Rewrite Script (Open AI)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack QA Fail (Manual Review)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Rewritten Script JSON": {
+      "main": [
+        [
+          {
+            "node": "Apply Compliance Fixes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rewrite Script (Open AI)": {
+      "main": [
+        [
+          {
+            "node": "Parse Rewritten Script JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ScriptAgent (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "Parse Script JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ComplianceAgent": {
+      "main": [
+        [
+          {
+            "node": "Parse Compliance JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Compliance JSON": {
+      "main": [
+        [
+          {
+            "node": "Merge Script + Compliance",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Merge After Uploads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Build Remotion Props (Long)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request2": {
+      "main": [
+        [
+          {
+            "node": "Merge After Uploads",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "HTTP Request3": {
+      "main": [
+        [
+          {
+            "node": "Manifest Binary → JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request4": {
+      "main": [
+        [
+          {
+            "node": "Send QA Request Approval (Slack)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "ee57cbf9-9430-4390-b110-13665c1f3f01",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fa57cd8bf87d2ef8598f0e0ac0a0aa00bfb4f0a4b9522b618994acafa0ec2478"
+  },
+  "id": "FgcFYONkpEq1Vq3N",
+  "tags": []
+}
