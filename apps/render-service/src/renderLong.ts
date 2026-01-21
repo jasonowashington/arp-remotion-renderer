@@ -10,19 +10,25 @@ import { parseSrt, segmentsToWordCues } from "./srt";
 import { logger } from "./logger";
 import type { RenderRequest } from "./schema";
 
-
 function findRepoRoot(startDir: string) {
   let dir = startDir;
+
   for (let i = 0; i < 12; i++) {
     const hasPkg = existsSync(path.join(dir, "package.json"));
-    const hasPackages = existsSync(path.join(dir, "packages"));
-    const hasApps = existsSync(path.join(dir, "apps"));
-    if (hasPkg && (hasPackages || hasApps)) return dir;
+    const hasWorkspaces = existsSync(path.join(dir, "package-lock.json")) || existsSync(path.join(dir, "pnpm-workspace.yaml"));
+    const hasPackagesDir = existsSync(path.join(dir, "packages"));
+    const hasAppsDir = existsSync(path.join(dir, "apps"));
+
+    // ✅ Only accept as repo root if it looks like monorepo root
+    if (hasPkg && (hasWorkspaces || hasPackagesDir || hasAppsDir)) {
+      return dir;
+    }
 
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;
   }
+
   return startDir;
 }
 
@@ -32,10 +38,13 @@ const repoRoot = findRepoRoot(process.cwd());
 const entryRel = process.env.REMOTION_ENTRYPOINT || "packages/remotion-video/src/index.ts";
 const entryPoint = path.resolve(repoRoot, entryRel);
 
+console.log("[render] cwd:", process.cwd());
 console.log("[render] repoRoot:", repoRoot);
-console.log("[render] REMOTION_ENTRYPOINT:", entryRel);
+console.log("[render] entryRel:", entryRel);
 console.log("[render] entryPoint:", entryPoint);
 console.log("[render] entryExists:", existsSync(entryPoint));
+console.log("[render] packagesDirExists:", existsSync(path.join(repoRoot, "packages")));
+
 
 if (!existsSync(entryPoint)) {
   throw new Error(`Remotion entryPoint not found: ${entryPoint}`);
