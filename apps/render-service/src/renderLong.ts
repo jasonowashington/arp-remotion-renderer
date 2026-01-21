@@ -13,8 +13,12 @@ import type { RenderRequest } from "./schema";
 
 function findRepoRoot(startDir: string) {
   let dir = startDir;
-  for (let i = 0; i < 10; i++) {
-    if (existsSync(path.join(dir, "package.json"))) return dir;
+  for (let i = 0; i < 12; i++) {
+    const hasPkg = existsSync(path.join(dir, "package.json"));
+    const hasPackages = existsSync(path.join(dir, "packages"));
+    const hasApps = existsSync(path.join(dir, "apps"));
+    if (hasPkg && (hasPackages || hasApps)) return dir;
+
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;
