@@ -9,6 +9,12 @@ import { parseSrt, segmentsToWordCues } from "./srt";
 import { logger } from "./logger";
 import type { RenderRequest } from "./schema";
 
+const defaultEntry = path.resolve(process.cwd(), "apps/remotion-video/src/index.ts");
+const entryPoint =
+  process.env.REMOTION_ENTRYPOINT
+    ? path.resolve(process.cwd(), process.env.REMOTION_ENTRYPOINT)
+    : defaultEntry;
+
 export async function renderLong(req: RenderRequest) {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "arp-render-"));
   const logLines: string[] = [];
@@ -38,8 +44,7 @@ export async function renderLong(req: RenderRequest) {
     const audioPath = path.join(tmpDir, "vo.mp3");
     await fs.writeFile(audioPath, audioBuf);
 
-    const entry = path.join(__dirname, "../../packages/remotion-video/src/index.ts");
-    const bundleLocation = await bundle({ entryPoint: entry, webpackOverride: (c) => c });
+    const bundleLocation = await bundle({ entryPoint, webpackOverride: (c) => c });
 
     const composition = await selectComposition({
       serveUrl: bundleLocation,
