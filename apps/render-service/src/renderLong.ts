@@ -1,6 +1,7 @@
 import path from "node:path";
 import os from "node:os";
 import fs from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { env } from "./config";
@@ -9,11 +10,32 @@ import { parseSrt, segmentsToWordCues } from "./srt";
 import { logger } from "./logger";
 import type { RenderRequest } from "./schema";
 
-const defaultEntry = path.resolve(process.cwd(), "apps/remotion-video/src/index.ts");
-const entryPoint =
-  process.env.REMOTION_ENTRYPOINT
-    ? path.resolve(process.cwd(), process.env.REMOTION_ENTRYPOINT)
-    : defaultEntry;
+
+function findRepoRoot(startDir: string) {
+  let dir = startDir;
+  for (let i = 0; i < 10; i++) {
+    if (existsSync(path.join(dir, "package.json"))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return startDir;
+}
+
+const repoRoot = findRepoRoot(process.cwd());
+
+// ✅ Use ENV override, default to your known-good path
+const entryRel = process.env.REMOTION_ENTRYPOINT || "packages/remotion-video/src/index.ts";
+const entryPoint = path.resolve(repoRoot, entryRel);
+
+console.log("[render] repoRoot:", repoRoot);
+console.log("[render] REMOTION_ENTRYPOINT:", entryRel);
+console.log("[render] entryPoint:", entryPoint);
+console.log("[render] entryExists:", existsSync(entryPoint));
+
+if (!existsSync(entryPoint)) {
+  throw new Error(`Remotion entryPoint not found: ${entryPoint}`);
+}
 
 export async function renderLong(req: RenderRequest) {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "arp-render-"));
@@ -45,6 +67,8 @@ export async function renderLong(req: RenderRequest) {
     await fs.writeFile(audioPath, audioBuf);
 
     const bundleLocation = await bundle({ entryPoint, webpackOverride: (c) => c });
+    console.log("[render] bundleLocation=", bundleLocation);
+    console.log("[render] bundleExists=", existsSync(bundleLocation));
 
     const composition = await selectComposition({
       serveUrl: bundleLocation,
