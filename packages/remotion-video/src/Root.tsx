@@ -23,8 +23,8 @@ export const RemotionRoot: React.FC = () => {
 
   return (
     <>
-      <Composition id="ARP_Long_16x9" component={ARPLong} durationInFrames={fps * 210} fps={fps} width={1920} height={1080} defaultProps={defaultProps} />
-      <Composition id="ARP_Short_9x16" component={ARPShort} durationInFrames={fps * 30} fps={fps} width={1080} height={1920} defaultProps={defaultProps as any} />
+      <Composition id="ARP-Long-16x9" component={ARPLong} durationInFrames={fps * 210} fps={fps} width={1920} height={1080} defaultProps={defaultProps} />
+      <Composition id="ARP-Short-9x16" component={ARPShort} durationInFrames={fps * 30} fps={fps} width={1080} height={1920} defaultProps={defaultProps as any} />
     </>
   );
 };
