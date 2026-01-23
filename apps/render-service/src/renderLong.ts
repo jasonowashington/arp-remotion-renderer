@@ -9,7 +9,7 @@ import { downloadToBuffer, uploadBuffer, uploadFile, signedGetUrl } from "./r2";
 import { parseSrt, segmentsToWordCues } from "./srt";
 import { logger } from "./logger";
 import type { RenderRequest } from "./schema";
-import { getBundleLocation } from "./bundleCache";
+ 
 
 // Render mutex: prevents concurrent renders to protect RAM
 let renderInFlight: Promise<any> | null = null;
@@ -52,6 +52,14 @@ console.log("[render] packagesDirExists:", existsSync(path.join(repoRoot, "packa
 
 if (!existsSync(entryPoint)) {
   throw new Error(`Remotion entryPoint not found: ${entryPoint}`);
+}
+
+async function getBundleLocation(): Promise<string> {
+  const bundleLocation = await bundle({
+    entryPoint,
+    webpackOverride: (config) => config,
+  });
+  return bundleLocation;
 }
 
 export async function renderLong(req: RenderRequest) {
@@ -103,7 +111,9 @@ export async function renderLong(req: RenderRequest) {
       outputLocation: outPath,
       inputProps: { ...propsJson, audioPath },
       concurrency: env.REMOTION_CONCURRENCY,
-      chromiumOptions: { gl: env.REMOTION_GL as any }
+      chromiumOptions: { gl: env.REMOTION_GL as any,
+        args: ["--disable-dev-shm-usage", "--no-sandbox", "--disable-gpu"]
+       }
     });
 
     // Stream upload (no buffering)
