@@ -5,10 +5,14 @@ import { existsSync } from "node:fs";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { env } from "./config";
-import { downloadToBuffer, uploadBuffer, signedGetUrl } from "./r2";
+import { downloadToBuffer, uploadBuffer, uploadFile, signedGetUrl } from "./r2";
 import { parseSrt, segmentsToWordCues } from "./srt";
 import { logger } from "./logger";
 import type { RenderRequest } from "./schema";
+import { getBundleLocation } from "./bundleCache";
+
+// Render mutex: prevents concurrent renders to protect RAM
+let renderInFlight: Promise<any> | null = null;
 
 function findRepoRoot(startDir: string) {
   let dir = startDir;
@@ -51,15 +55,17 @@ if (!existsSync(entryPoint)) {
 }
 
 export async function renderLong(req: RenderRequest) {
-  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "arp-render-"));
-  const logLines: string[] = [];
-  const log = (msg: string) => {
-    const line = `[${new Date().toISOString()}] ${msg}`;
-    logLines.push(line);
-    logger.info(line);
-  };
+  // Serialize renders to protect RAM
+  const run = async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "arp-render-"));
+    const logLines: string[] = [];
+    const log = (msg: string) => {
+      const line = `[${new Date().toISOString()}] ${msg}`;
+      logLines.push(line);
+      logger.info(line);
+    };
 
-  try {
+    try {
     log(`Starting render runId=${req.runId} composition=${req.composition}`);
 
     const [propsBuf, audioBuf] = await Promise.all([
@@ -79,7 +85,7 @@ export async function renderLong(req: RenderRequest) {
     const audioPath = path.join(tmpDir, "vo.mp3");
     await fs.writeFile(audioPath, audioBuf);
 
-    const bundleLocation = await bundle({ entryPoint, webpackOverride: (c) => c });
+    const bundleLocation = await getBundleLocation();
     console.log("[render] bundleLocation=", bundleLocation);
     console.log("[render] bundleExists=", existsSync(bundleLocation));
 
@@ -100,8 +106,14 @@ export async function renderLong(req: RenderRequest) {
       chromiumOptions: { gl: env.REMOTION_GL as any }
     });
 
-    const mp4 = await fs.readFile(outPath);
-    await uploadBuffer(req.outputKey, mp4, "video/mp4");
+    // Stream upload (no buffering)
+try {
+  await uploadFile(req.outputKey, outPath, "video/mp4");
+} finally {
+  // Delete MP4 even if upload fails
+  await fs.unlink(outPath).catch(() => {});
+
+}
 
     const logText = logLines.join("\n") + "\n";
     await uploadBuffer(req.logKey, Buffer.from(logText, "utf-8"), "text/plain");
@@ -115,8 +127,21 @@ export async function renderLong(req: RenderRequest) {
     try {
       await uploadBuffer(req.logKey, Buffer.from(logLines.join("\n") + "\n", "utf-8"), "text/plain");
     } catch {}
-    throw e;
+      throw e;
+    } finally {
+      try { await fs.rm(tmpDir, { recursive: true, force: true }); } catch {}
+    }
+  };
+
+  // If something is already rendering, wait for it
+  while (renderInFlight) {
+    await renderInFlight.catch(() => {});
+  }
+
+  renderInFlight = run();
+  try {
+    return await renderInFlight;
   } finally {
-    try { await fs.rm(tmpDir, { recursive: true, force: true }); } catch {}
+    renderInFlight = null;
   }
 }

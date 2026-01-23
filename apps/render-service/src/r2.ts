@@ -1,6 +1,7 @@
 import { S3Client, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Readable } from "node:stream";
+import { createReadStream } from "node:fs";
 import { env, r2Endpoint } from "./config";
 
 export const s3 = new S3Client({
@@ -21,6 +22,24 @@ export async function downloadToBuffer(key: string, bucket = env.R2_BUCKET): Pro
 
 export async function uploadBuffer(key: string, data: Buffer, contentType: string, bucket = env.R2_BUCKET) {
   await s3.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: data, ContentType: contentType }));
+}
+
+export async function uploadFile(
+  key: string,
+  filePath: string,
+  contentType: string,
+  bucket = env.R2_BUCKET
+) {
+  const Body = createReadStream(filePath);
+
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body,
+      ContentType: contentType
+    })
+  );
 }
 
 export async function signedGetUrl(key: string, bucket = env.R2_BUCKET, expiresSec = env.SIGNED_URL_TTL_SECONDS) {
