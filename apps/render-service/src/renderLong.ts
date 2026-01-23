@@ -9,10 +9,22 @@ import { downloadToBuffer, uploadBuffer, uploadFile, signedGetUrl } from "./r2";
 import { parseSrt, segmentsToWordCues } from "./srt";
 import { logger } from "./logger";
 import type { RenderRequest } from "./schema";
- 
 
-// Render mutex: prevents concurrent renders to protect RAM
-let renderInFlight: Promise<any> | null = null;
+// Render queue: prevents concurrent renders to protect RAM
+let renderQueue: Promise<void> = Promise.resolve();
+
+async function withRenderLock<T>(fn: () => Promise<T>): Promise<T> {
+  const prev = renderQueue;
+  let release!: () => void;
+  renderQueue = new Promise<void>((r) => (release = r));
+
+  await prev; // wait for previous render to finish
+  try {
+    return await fn();
+  } finally {
+    release();
+  }
+}
 
 function findRepoRoot(startDir: string) {
   let dir = startDir;
@@ -63,8 +75,7 @@ async function getBundleLocation(): Promise<string> {
 }
 
 export async function renderLong(req: RenderRequest) {
-  // Serialize renders to protect RAM
-  const run = async () => {
+  return withRenderLock(async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "arp-render-"));
     const logLines: string[] = [];
     const log = (msg: string) => {
@@ -140,17 +151,5 @@ try {
     } finally {
       try { await fs.rm(tmpDir, { recursive: true, force: true }); } catch {}
     }
-  };
-
-  // If something is already rendering, wait for it
-  while (renderInFlight) {
-    await renderInFlight.catch(() => {});
-  }
-
-  renderInFlight = run();
-  try {
-    return await renderInFlight;
-  } finally {
-    renderInFlight = null;
-  }
+  });
 }
