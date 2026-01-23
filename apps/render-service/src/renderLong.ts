@@ -113,9 +113,6 @@ await renderMedia({
   inputProps: { ...propsJson, audioPath },
   concurrency: env.REMOTION_CONCURRENCY,
   chromiumOptions: { gl: env.REMOTION_GL as any },
-  puppeteerOptions: {
-    args: ["--disable-dev-shm-usage", "--no-sandbox", "--disable-gpu"],
-  },
 });
 
     // Stream upload (no buffering)
