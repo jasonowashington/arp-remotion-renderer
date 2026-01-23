@@ -104,17 +104,19 @@ export async function renderLong(req: RenderRequest) {
     });
 
     const outPath = path.join(tmpDir, "output.mp4");
-    await renderMedia({
-      composition,
-      serveUrl: bundleLocation,
-      codec: "h264",
-      outputLocation: outPath,
-      inputProps: { ...propsJson, audioPath },
-      concurrency: env.REMOTION_CONCURRENCY,
-      chromiumOptions: { gl: env.REMOTION_GL as any,
-        args: ["--disable-dev-shm-usage", "--no-sandbox", "--disable-gpu"]
-       }
-    });
+
+await renderMedia({
+  composition,
+  serveUrl: bundleLocation,
+  codec: "h264",
+  outputLocation: outPath,
+  inputProps: { ...propsJson, audioPath },
+  concurrency: env.REMOTION_CONCURRENCY,
+  chromiumOptions: { gl: env.REMOTION_GL as any },
+  puppeteerOptions: {
+    args: ["--disable-dev-shm-usage", "--no-sandbox", "--disable-gpu"],
+  },
+});
 
     // Stream upload (no buffering)
 try {
