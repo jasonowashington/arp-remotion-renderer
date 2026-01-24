@@ -15,7 +15,7 @@ export type LongProps = {
   title: string;
   subtitle?: string;
   fps: number;
-  audioPath: string;
+  audioSrc: string;
   scenes: Scene[];
   captions?: WordCue[];
   cta?: { primary: string; secondary?: string; urlPrimary?: string; urlSecondary?: string; };

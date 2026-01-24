@@ -37,7 +37,7 @@ export const ARPLong: React.FC<LongProps> = (props) => {
 
   return (
     <AbsoluteFill style={bg}>
-      {props.audioPath ? <Audio src={props.audioPath} /> : null}
+      {props.audioSrc ? <Audio src={props.audioSrc} /> : null}
 
       <AbsoluteFill style={{
         opacity: 0.55,

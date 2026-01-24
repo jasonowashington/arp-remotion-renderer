@@ -108,3 +108,15 @@ app.get("/health", (_req, res) => res.status(200).json({ ok: true }));
 app.get("/health/health", (_req, res) => res.status(200).json({ ok: true })); // alias
 
 app.listen(env.PORT, () => logger.info(`ARP Render service listening on :${env.PORT}`));
+
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT_EXCEPTION", err);
+});
+
+process.on("unhandledRejection", (err) => {
+  console.error("UNHANDLED_REJECTION", err);
+});
+
+process.on("exit", (code) => {
+  console.error("PROCESS_EXIT", code);
+});

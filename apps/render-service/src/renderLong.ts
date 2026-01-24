@@ -31,7 +31,9 @@ function findRepoRoot(startDir: string) {
 
   for (let i = 0; i < 12; i++) {
     const hasPkg = existsSync(path.join(dir, "package.json"));
-    const hasWorkspaces = existsSync(path.join(dir, "package-lock.json")) || existsSync(path.join(dir, "pnpm-workspace.yaml"));
+    const hasWorkspaces =
+      existsSync(path.join(dir, "package-lock.json")) ||
+      existsSync(path.join(dir, "pnpm-workspace.yaml"));
     const hasPackagesDir = existsSync(path.join(dir, "packages"));
     const hasAppsDir = existsSync(path.join(dir, "apps"));
 
@@ -61,17 +63,33 @@ console.log("[render] entryPoint:", entryPoint);
 console.log("[render] entryExists:", existsSync(entryPoint));
 console.log("[render] packagesDirExists:", existsSync(path.join(repoRoot, "packages")));
 
-
 if (!existsSync(entryPoint)) {
   throw new Error(`Remotion entryPoint not found: ${entryPoint}`);
 }
 
+/**
+ * ✅ Bundle caching (HUGE memory+speed win)
+ * Your previous code bundled on every request.
+ */
+let cachedBundleLocation: string | null = null;
+let inflightBundle: Promise<string> | null = null;
+
 async function getBundleLocation(): Promise<string> {
-  const bundleLocation = await bundle({
-    entryPoint,
-    webpackOverride: (config) => config,
-  });
-  return bundleLocation;
+  if (cachedBundleLocation) return cachedBundleLocation;
+  if (inflightBundle) return inflightBundle;
+
+  inflightBundle = (async () => {
+    const loc = await bundle({
+      entryPoint,
+      webpackOverride: (config) => config,
+    });
+    cachedBundleLocation = loc;
+    inflightBundle = null;
+    console.log("[render] cachedBundleLocation=", cachedBundleLocation);
+    return loc;
+  })();
+
+  return inflightBundle;
 }
 
 export async function renderLong(req: RenderRequest) {
@@ -85,71 +103,82 @@ export async function renderLong(req: RenderRequest) {
     };
 
     try {
-    log(`Starting render runId=${req.runId} composition=${req.composition}`);
+      log(`Starting render runId=${req.runId} composition=${req.composition}`);
 
-    const [propsBuf, audioBuf] = await Promise.all([
-      downloadToBuffer(req.propsKey),
-      downloadToBuffer(req.audioKey)
-    ]);
+      const [propsBuf, audioBuf] = await Promise.all([
+        downloadToBuffer(req.propsKey),
+        downloadToBuffer(req.audioKey),
+      ]);
 
-    const propsJson = JSON.parse(propsBuf.toString("utf-8")) as any;
+      const propsJson = JSON.parse(propsBuf.toString("utf-8")) as any;
 
-    if (req.captionsKey) {
-      const capBuf = await downloadToBuffer(req.captionsKey);
-      const segments = parseSrt(capBuf.toString("utf-8"));
-      propsJson.captions = segmentsToWordCues(segments);
-      log(`Captions loaded: segments=${segments.length} wordCues=${propsJson.captions.length}`);
-    }
+      if (req.captionsKey) {
+        const capBuf = await downloadToBuffer(req.captionsKey);
+        const segments = parseSrt(capBuf.toString("utf-8"));
+        propsJson.captions = segmentsToWordCues(segments);
+        log(`Captions loaded: segments=${segments.length} wordCues=${propsJson.captions.length}`);
+      }
 
-    const audioPath = path.join(tmpDir, "vo.mp3");
-    await fs.writeFile(audioPath, audioBuf);
+      // ✅ Write MP3 to disk (temp)
+      const audioPath = path.join(tmpDir, "vo.mp3");
+      await fs.writeFile(audioPath, audioBuf);
 
-    const bundleLocation = await getBundleLocation();
-    console.log("[render] bundleLocation=", bundleLocation);
-    console.log("[render] bundleExists=", existsSync(bundleLocation));
+      // ✅ CRITICAL FIX: Use file:// URL so Remotion reads local file instead of http://localhost
+      const audioSrc = `file://${audioPath}`;
+      log(`audioSrc=${audioSrc}`);
 
-    const composition = await selectComposition({
-      serveUrl: bundleLocation,
-      id: req.composition,
-      inputProps: { ...propsJson, audioPath }
-    });
+      const bundleLocation = await getBundleLocation();
+      console.log("[render] bundleLocation=", bundleLocation);
+      console.log("[render] bundleExists=", existsSync(bundleLocation));
 
-    const outPath = path.join(tmpDir, "output.mp4");
+      const composition = await selectComposition({
+        serveUrl: bundleLocation,
+        id: req.composition,
+        // ✅ pass audioSrc (NOT audioPath)
+        inputProps: { ...propsJson, audioSrc },
+      });
 
-await renderMedia({
-  composition,
-  serveUrl: bundleLocation,
-  codec: "h264",
-  outputLocation: outPath,
-  inputProps: { ...propsJson, audioPath },
-  concurrency: env.REMOTION_CONCURRENCY,
-  chromiumOptions: { gl: env.REMOTION_GL as any },
-});
+      const outPath = path.join(tmpDir, "output.mp4");
 
-    // Stream upload (no buffering)
-try {
-  await uploadFile(req.outputKey, outPath, "video/mp4");
-} finally {
-  // Delete MP4 even if upload fails
-  await fs.unlink(outPath).catch(() => {});
+      await renderMedia({
+        composition,
+        serveUrl: bundleLocation,
+        codec: "h264",
+        outputLocation: outPath,
+        // ✅ pass audioSrc (NOT audioPath)
+        inputProps: { ...propsJson, audioSrc },
+        concurrency: env.REMOTION_CONCURRENCY,
+        chromiumOptions: { gl: env.REMOTION_GL as any },
+      });
 
-}
+      // ✅ Stream upload (no buffering)
+      try {
+        await uploadFile(req.outputKey, outPath, "video/mp4");
+      } finally {
+        // Delete MP4 even if upload fails
+        await fs.unlink(outPath).catch(() => {});
+      }
 
-    const logText = logLines.join("\n") + "\n";
-    await uploadBuffer(req.logKey, Buffer.from(logText, "utf-8"), "text/plain");
+      const logText = logLines.join("\n") + "\n";
+      await uploadBuffer(req.logKey, Buffer.from(logText, "utf-8"), "text/plain");
 
-    const [videoUrl, logUrl] = await Promise.all([signedGetUrl(req.outputKey), signedGetUrl(req.logKey)]);
+      const [videoUrl, logUrl] = await Promise.all([
+        signedGetUrl(req.outputKey),
+        signedGetUrl(req.logKey),
+      ]);
 
-    return { ok: true, outputKey: req.outputKey, logKey: req.logKey, signed: { videoUrl, logUrl } };
-  } catch (e: any) {
-    const errLine = `ERROR: ${e?.stack || e?.message || String(e)}`;
-    logLines.push(errLine);
-    try {
-      await uploadBuffer(req.logKey, Buffer.from(logLines.join("\n") + "\n", "utf-8"), "text/plain");
-    } catch {}
+      return { ok: true, outputKey: req.outputKey, logKey: req.logKey, signed: { videoUrl, logUrl } };
+    } catch (e: any) {
+      const errLine = `ERROR: ${e?.stack || e?.message || String(e)}`;
+      logLines.push(errLine);
+      try {
+        await uploadBuffer(req.logKey, Buffer.from(logLines.join("\n") + "\n", "utf-8"), "text/plain");
+      } catch {}
       throw e;
     } finally {
-      try { await fs.rm(tmpDir, { recursive: true, force: true }); } catch {}
+      try {
+        await fs.rm(tmpDir, { recursive: true, force: true });
+      } catch {}
     }
   });
 }
