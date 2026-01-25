@@ -119,12 +119,8 @@ export async function renderLong(req: RenderRequest) {
         log(`Captions loaded: segments=${segments.length} wordCues=${propsJson.captions.length}`);
       }
 
-      // ✅ Write MP3 to disk (temp)
-      const audioPath = path.join(tmpDir, "vo.mp3");
-      await fs.writeFile(audioPath, audioBuf);
-
-      // ✅ CRITICAL FIX: Use file:// URL so Remotion reads local file instead of http://localhost
-      const audioSrc = `file://${audioPath}`;
+      // ✅ Fetch mp3 over HTTP
+      const audioSrc = await signedGetUrl(req.audioKey);
       log(`audioSrc=${audioSrc}`);
 
       const bundleLocation = await getBundleLocation();
