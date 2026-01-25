@@ -7,6 +7,9 @@ import { logger } from "./logger";
 import { RenderRequestSchema } from "./schema";
 import { renderLong } from "./renderLong";
 import { uploadBuffer, downloadToBuffer } from "./r2";
+import crypto from "node:crypto";
+import { createJob, getJob, updateJob } from "./jobs";
+
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB limit
@@ -108,6 +111,34 @@ app.get("/health", (_req, res) => res.status(200).json({ ok: true }));
 app.get("/health/health", (_req, res) => res.status(200).json({ ok: true })); // alias
 
 app.listen(env.PORT, () => logger.info(`ARP Render service listening on :${env.PORT}`));
+
+app.post("/render/long/start", async (req, res) => {
+  const parsed = RenderRequestSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ ok: false, error: parsed.error.flatten() });
+
+  const jobId = crypto.randomUUID();
+  createJob(jobId, parsed.data);
+
+  // Fire-and-forget render (but still protected by your render lock inside renderLong)
+  (async () => {
+    try {
+      updateJob(jobId, { status: "running" });
+      const out = await renderLong(parsed.data);
+      updateJob(jobId, { status: "done", result: out });
+    } catch (e: any) {
+      updateJob(jobId, { status: "error", error: e?.message || String(e) });
+    }
+  })();
+
+  return res.status(202).json({ ok: true, jobId });
+});
+
+app.get("/render/status/:jobId", (req, res) => {
+  const job = getJob(req.params.jobId);
+  if (!job) return res.status(404).json({ ok: false, error: "Job not found" });
+
+  return res.json({ ok: true, job });
+});
 
 process.on("uncaughtException", (err) => {
   console.error("UNCAUGHT_EXCEPTION", err);
