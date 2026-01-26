@@ -130,7 +130,11 @@ app.post("/render/long/start", async (req, res) => {
     }
   })();
 
-  return res.status(202).json({ ok: true, jobId });
+  return res.status(202).json({
+  ok: true,
+  jobId,
+  ...parsed.data, // 👈 echoes runId, propsKey, audioKey, etc.
+  });
 });
 
 app.get("/render/status/:jobId", (req, res) => {
