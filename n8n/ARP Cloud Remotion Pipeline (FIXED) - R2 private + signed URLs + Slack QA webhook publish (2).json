@@ -352,7 +352,7 @@
             {
               "id": "3e7d087a-4e06-4ee3-a7f9-f875c89493a6",
               "name": "captionsSrt",
-              "value": "={{ $json.body || $json }}",
+              "value": "={{ $json.srt || $json.body || $json }}",
               "type": "string"
             },
             {
@@ -360,12 +360,6 @@
               "name": "bucket",
               "value": "={{ $json.r2Bucket }}",
               "type": "string"
-            },
-            {
-              "id": "fc1bc8ef-adb2-4cbe-bb35-524d1d293166",
-              "name": "captionsbin",
-              "value": "={{ $json.r2Prefix + '/captions/captions.srt' }}",
-              "type": "binary"
             }
           ]
         },
@@ -383,6 +377,7 @@
     {
       "parameters": {
         "mode": "jsonToBinary",
+        "sourceKey": "captionsSrt",
         "destinationKey": "captionsbin",
         "options": {
           "fileName": "captions.srt",
@@ -721,7 +716,7 @@
           "value": "#video-qa-approval"
         },
         "messageType": "block",
-        "blocksUi": "=[\n  {\"type\":\"header\",\"text\":{\"type\":\"plain_text\",\"text\":\"🎬 ARP VIDEO READY FOR QA\"}},\n  {\"type\":\"section\",\"fields\":[\n    {\"type\":\"mrkdwn\",\"text\":\"*Run ID:*\\n{{ $json.runId }}\"},\n    {\"type\":\"mrkdwn\",\"text\":\"*Title:*\\n{{ $json.youtubeTitle }}\"}\n  ]},\n  {\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*Signed Video:*\\n<{{ $json.videoUrl }}|Open Rendered MP4>\\n*Logs:*\\n<{{ $json.logUrl }}|Open Render Log>\"}},\n  {\"type\":\"divider\"},\n  {\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"Approve to publish to YouTube (private). Reject to stop.\"}},\n  {\"type\":\"actions\",\"elements\":[\n    {\"type\":\"button\",\"text\":{\"type\":\"plain_text\",\"text\":\"✅ Approve\"},\"style\":\"primary\",\"value\":\"approved|{{ $json.runId }}\",\"action_id\":\"approve_video\"},\n    {\"type\":\"button\",\"text\":{\"type\":\"plain_text\",\"text\":\"❌ Reject\"},\"style\":\"danger\",\"value\":\"rejected|{{ $json.runId }}\",\"action_id\":\"reject_video\"}\n  ]}\n]",
+        "blocksUi": "=[\n  {\"type\":\"header\",\"text\":{\"type\":\"plain_text\",\"text\":\"🎬 ARP VIDEO READY FOR QA\"}},\n  {\"type\":\"section\",\"fields\":[\n    {\"type\":\"mrkdwn\",\"text\":\"*Run ID:*\\n{{ $json.runId }}\"},\n    {\"type\":\"mrkdwn\",\"text\":\"*Title:*\\n{{ $json.youtubeTitle }}\"}\n  ]},\n  {\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*Signed Video:*\\n<{{ $json.videoUrl }}|Open Rendered MP4>\\n*Logs:*\\n<{{ $json.logUrl }}|Open Render Log>\\n*Manifest:*\\n<{{ $json.manifestUrl }}|View Manifest>\"}},\n  {\"type\":\"divider\"},\n  {\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"Approve to publish to YouTube (private). Reject to stop.\"}},\n  {\"type\":\"actions\",\"elements\":[\n    {\"type\":\"button\",\"text\":{\"type\":\"plain_text\",\"text\":\"✅ Approve\"},\"style\":\"primary\",\"value\":\"approved|{{ $json.runId }}\",\"action_id\":\"approve_video\"},\n    {\"type\":\"button\",\"text\":{\"type\":\"plain_text\",\"text\":\"❌ Reject\"},\"style\":\"danger\",\"value\":\"rejected|{{ $json.runId }}\",\"action_id\":\"reject_video\"}\n  ]}\n]",
         "text": "ARP video ready for QA",
         "otherOptions": {}
       },
@@ -1158,6 +1153,19 @@
       ],
       "id": "a6aaac01-80a8-4b8b-b771-233a5a733ded",
       "name": "R2 Upload Manifest (Proxy)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract manifestUrl from R2 Upload Manifest response\nconst manifestUrl = String($json.manifestUrl || '').trim();\nif (!manifestUrl) {\n  throw new Error('manifestUrl missing from R2 Upload Manifest (Proxy) response');\n}\n\n// Get all the previous data from Build Run Manifest JSON node\nconst manifestData = $('Build Run Manifest JSON').item.json;\n\nreturn [{\n  json: {\n    ...manifestData,\n    manifestUrl  // Add the signed manifest URL\n  }\n}];"
+      },
+      "id": "manifest-url-extractor-12345",
+      "name": "Extract ManifestUrl & Merge",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2760,
+        -304
+      ]
     }
   ],
   "pinData": {},
@@ -1403,7 +1411,7 @@
       "main": [
         [
           {
-            "node": "HTTP Request4",
+            "node": "R2 Upload Manifest (Proxy)",
             "type": "main",
             "index": 0
           }
@@ -1645,6 +1653,28 @@
       ]
     },
     "HTTP Request4": {
+      "main": [
+        [
+          {
+            "node": "Send QA Request Approval (Slack)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "R2 Upload Manifest (Proxy)": {
+      "main": [
+        [
+          {
+            "node": "Extract Manifest URL & Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Manifest URL & Merge": {
       "main": [
         [
           {

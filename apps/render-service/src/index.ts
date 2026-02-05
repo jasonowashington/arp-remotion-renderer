@@ -6,7 +6,7 @@ import { env } from "./config";
 import { logger } from "./logger";
 import { RenderRequestSchema } from "./schema";
 import { renderLong } from "./renderLong";
-import { uploadBuffer, downloadToBuffer } from "./r2";
+import { uploadBuffer, downloadToBuffer, signedGetUrl } from "./r2";
 import crypto from "node:crypto";
 import { createJob, getJob, updateJob } from "./jobs";
 
@@ -38,8 +38,17 @@ app.post("/api/r2/upload", upload.single("file"), async (req, res) => {
 
     await uploadBuffer(key, req.file.buffer, finalContentType, finalBucket);
     
-    logger.info(`R2 Upload successful: ${key} (${req.file.size} bytes)`);
-    res.json({ ok: true, key, bucket: finalBucket, size: req.file.size });
+    // ✅ Sign manifest uploads ONLY
+    const shouldSign = key.endsWith("/manifest.json") || key === "manifest.json";
+    const manifestUrl = shouldSign ? await signedGetUrl(key, finalBucket) : undefined;
+    
+    logger.info(`R2 Upload successful: ${key} (${req.file.size} bytes)${manifestUrl ? ' [SIGNED]' : ''}`);
+    
+    const response: any = { ok: true, key, bucket: finalBucket, size: req.file.size };
+    if (manifestUrl) {
+      response.manifestUrl = manifestUrl;
+    }
+    res.json(response);
   } catch (e: any) {
     logger.error("R2 Upload failed:", e);
     res.status(500).json({ ok: false, error: e?.message || "Upload failed" });
