@@ -17,6 +17,15 @@ This repository is the **code package** that backs your n8n cloud orchestration 
 - `POST /render/long`
 - `POST /render/short` (optional)
 
+### GET /health response
+```json
+{
+  "ok": true,
+  "service": "arp-remotion-renderer",
+  "time": "2026-01-01T00:00:00.000Z"
+}
+```
+
 ### POST /render/long request body
 ```json
 {

@@ -5,6 +5,15 @@ Create a **Web Service**:
 - Region: your preference
 - Health check path: `/health`
 
+Expected `/health` response shape:
+```json
+{
+	"ok": true,
+	"service": "arp-remotion-renderer",
+	"time": "2026-01-01T00:00:00.000Z"
+}
+```
+
 ## Build Command
 ```bash
 npm ci && npm run build

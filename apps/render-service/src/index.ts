@@ -14,11 +14,17 @@ import { createJob, getJob, updateJob } from "./jobs";
 const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB limit
 
+const getHealthPayload = () => ({
+  ok: true,
+  service: "arp-remotion-renderer",
+  time: new Date().toISOString()
+});
+
 app.use(cors({ origin: env.CORS_ORIGIN === "*" ? true : env.CORS_ORIGIN }));
 app.use(express.json({ limit: "2mb" }));
 app.use(morgan("combined"));
 
-app.get("/health", (_req, res) => res.json({ ok: true, service: "arp-remotion-renderer", time: new Date().toISOString() }));
+app.get("/health", (_req, res) => res.json(getHealthPayload()));
 
 // R2 Proxy Endpoints
 app.post("/api/r2/upload", upload.single("file"), async (req, res) => {
@@ -91,6 +97,13 @@ app.post("/render/long", async (req, res) => {
   }
 });
 
+app.get("/render/long", (_req, res) => {
+  res.status(405).json({
+    ok: false,
+    error: "Method not allowed. Use POST /render/long with a JSON body."
+  });
+});
+
 app.post("/render/short", async (req, res) => {
   const parsed = RenderRequestSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ ok: false, error: parsed.error.flatten() });
@@ -103,21 +116,22 @@ app.post("/render/short", async (req, res) => {
   }
 });
 
+app.get("/render/short", (_req, res) => {
+  res.status(405).json({
+    ok: false,
+    error: "Method not allowed. Use POST /render/short with a JSON body."
+  });
+});
+
 // Root route so Render/browser doesn't show "Cannot GET /"
 app.get("/", (_req, res) => {
   res.status(200).type("text").send("ARP Remotion Renderer is online ✅");
 });
 
-// Health check endpoint (useful for monitoring / warmup gates)
-app.get("/health", (_req, res) => {
-  res.status(200).json({ ok: true, service: "arp-remotion-render-service" });
-});
-
 // Optional: favicon to stop 404 spam in logs
 app.get("/favicon.ico", (_req, res) => res.sendStatus(204));
 
-app.get("/health", (_req, res) => res.status(200).json({ ok: true }));
-app.get("/health/health", (_req, res) => res.status(200).json({ ok: true })); // alias
+app.get("/health/health", (_req, res) => res.status(200).json(getHealthPayload())); // alias
 
 app.listen(env.PORT, () => logger.info(`ARP Render service listening on :${env.PORT}`));
 
