@@ -449,7 +449,7 @@
         "url": "={{ $json.renderApiBase + '/render/long' }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ {\n  runId: $json.runId,\n  composition: \"ARP_Long_16x9\",\n  audioKey: $json.r2Prefix + \"/audio/vo.mp3\",\n  propsKey: $json.r2Prefix + \"/render/props.long.json\",\n  captionsKey: $json.r2Prefix + \"/captions/captions.srt\",\n  outputKey: $json.r2Prefix + \"/final/final_16x9.mp4\",\n  logKey: $json.r2Prefix + \"/logs/render_long.log\"\n} }}",
+        "jsonBody": "={{ {\n  runId: $json.runId,\n  composition: \"ARP-Long-16x9\",\n  audioKey: $json.r2Prefix + \"/audio/vo.mp3\",\n  propsKey: $json.r2Prefix + \"/render/props.long.json\",\n  captionsKey: $json.r2Prefix + \"/captions/captions.srt\",\n  outputKey: $json.r2Prefix + \"/final/final_16x9.mp4\",\n  logKey: $json.r2Prefix + \"/logs/render_long.log\"\n} }}",
         "options": {
           "timeout": 2100000
         }

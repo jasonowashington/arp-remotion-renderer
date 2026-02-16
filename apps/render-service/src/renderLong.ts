@@ -74,6 +74,11 @@ if (!existsSync(entryPoint)) {
 let cachedBundleLocation: string | null = null;
 let inflightBundle: Promise<string> | null = null;
 
+const compositionAliases: Record<string, string> = {
+  "ARP_Long_16x9": "ARP-Long-16x9",
+  "ARP_Short_9x16": "ARP-Short-9x16"
+};
+
 async function getBundleLocation(): Promise<string> {
   if (cachedBundleLocation) return cachedBundleLocation;
   if (inflightBundle) return inflightBundle;
@@ -103,7 +108,12 @@ export async function renderLong(req: RenderRequest) {
     };
 
     try {
-      log(`Starting render runId=${req.runId} composition=${req.composition}`);
+      const compositionId = compositionAliases[req.composition] ?? req.composition;
+      if (compositionId !== req.composition) {
+        log(`Normalized composition ${req.composition} -> ${compositionId}`);
+      }
+
+      log(`Starting render runId=${req.runId} composition=${compositionId}`);
 
       const [propsBuf, audioBuf] = await Promise.all([
         downloadToBuffer(req.propsKey),
@@ -129,7 +139,7 @@ export async function renderLong(req: RenderRequest) {
 
       const composition = await selectComposition({
         serveUrl: bundleLocation,
-        id: req.composition,
+        id: compositionId,
         // ✅ pass audioSrc (NOT audioPath)
         inputProps: { ...propsJson, audioSrc },
       });

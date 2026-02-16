@@ -30,7 +30,7 @@ This repository is the **code package** that backs your n8n cloud orchestration 
 ```json
 {
   "runId": "arp_YYYYMMDD_HHmmss",
-  "composition": "ARP_Long_16x9",
+  "composition": "ARP-Long-16x9",
   "audioKey": "runs/<runId>/audio/vo.mp3",
   "propsKey": "runs/<runId>/render/props.long.json",
   "captionsKey": "runs/<runId>/captions/captions.srt",
