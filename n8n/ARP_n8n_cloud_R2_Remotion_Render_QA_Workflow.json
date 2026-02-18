@@ -64,7 +64,7 @@
             },
             {
               "name": "renderApiBase",
-              "value": "https://YOUR-RENDER-SERVICE.onrender.com"
+              "value": "https://arp-remotion-renderer.onrender.com"
             },
             {
               "name": "signedUrlTtlSec",

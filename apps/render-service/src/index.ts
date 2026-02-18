@@ -12,6 +12,10 @@ import { createJob, getJob, updateJob } from "./jobs";
 
 
 const app = express();
+app.get("/render/health", (req, res) => {
+  res.status(200).json({ ok: true, service: "arp-remotion-renderer", ts: Date.now() });
+});
+
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB limit
 
 const getHealthPayload = () => ({

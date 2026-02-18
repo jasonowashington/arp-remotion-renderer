@@ -44,3 +44,8 @@ Your base URL will look like:
 
 n8n should use:
 `renderApiBase = https://<service-name>.onrender.com`
+
+Important:
+- Do not set `renderApiBase` to a `workers.dev` URL protected by Cloudflare Access.
+- If you see HTML titled `Sign in ・ Cloudflare Access`, the workflow is calling the wrong host.
+- `Render Long (Render.com API)` must call the Render service host ending in `.onrender.com`.
