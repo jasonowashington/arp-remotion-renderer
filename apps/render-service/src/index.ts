@@ -29,6 +29,15 @@ const getHealthPayload = () => ({
   time: new Date().toISOString(),
 });
 
+const writeJobToR2 = async (runId: string, jobId: string, job: any) => {
+  const existing = await getJob(jobId, runId);
+  if (existing) {
+    await (updateJob as any)(jobId, runId, job);
+    return;
+  }
+  await (createJob as any)(jobId, runId, job);
+};
+
 app.get("/health", (_req, res) => res.json(getHealthPayload()));
 app.get("/render/health", (_req, res) => res.status(200).json({ ok: true, service: "arp-remotion-renderer", ts: Date.now() }));
 
@@ -80,54 +89,72 @@ app.post("/api/r2/download", async (req, res) => {
 /** =========================
  *  ASYNC Render Long (NO HANG)
  *  ========================= */
-app.post("/render/long", async (req, res) => {
+app.post("/render/long/start", async (req, res) => {
   const parsed = RenderRequestSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ ok: false, error: parsed.error.flatten() });
 
   const data = parsed.data;
-  const bucket = env.R2_BUCKET;
-
-  // Validate the required inputs exist in R2 BEFORE queueing
-  const requiredKeys = [
-    { name: "audioKey", key: data.audioKey },
-    { name: "propsKey", key: data.propsKey },
-    { name: "captionsKey", key: data.captionsKey },
-  ];
-
-  const missing: string[] = [];
-  for (const k of requiredKeys) {
-    if (!k.key) missing.push(`${k.name} (empty)`);
-    else {
-      const ok = await existsKey(k.key, bucket);
-      if (!ok) missing.push(`${k.name}: ${k.key}`);
-    }
-  }
-
-  if (missing.length) {
-    return res.status(400).json({ ok: false, error: "Missing required R2 objects", missing });
-  }
 
   const jobId = crypto.randomUUID();
-  createJob(jobId, data);
+  const now = new Date().toISOString();
+
+  type RenderJob = {
+    id: string;
+    runId: string;
+    status: "queued" | "running" | "done" | "error";
+    createdAt: string;
+    updatedAt: string;
+    request: typeof data;
+    result?: unknown;
+    error?: string;
+  };
+
+  // initial job record
+  const job: RenderJob = {
+    id: jobId,
+    runId: data.runId,
+    status: "queued",
+    createdAt: now,
+    updatedAt: now,
+    request: data,
+  };
+
+  // ✅ persist immediately
+  await writeJobToR2(data.runId, jobId, job);
 
   // fire-and-forget
   (async () => {
     try {
-      updateJob(jobId, { status: "running" });
+      job.status = "running";
+      job.updatedAt = new Date().toISOString();
+      await writeJobToR2(data.runId, jobId, job);
+
       const out = await renderLong(data);
-      updateJob(jobId, { status: "done", result: out });
+
+      job.status = "done";
+      job.updatedAt = new Date().toISOString();
+      job.result = out;
+      await writeJobToR2(data.runId, jobId, job);
     } catch (e: any) {
-      updateJob(jobId, { status: "error", error: e?.message || String(e) });
+      job.status = "error";
+      job.updatedAt = new Date().toISOString();
+      job.error = e?.message || String(e);
+      await writeJobToR2(data.runId, jobId, job);
     }
   })();
 
-  // ✅ Immediate response (this is what stops n8n hanging)
+  // ✅ respond immediately (n8n will NOT hang)
   return res.status(202).json({ ok: true, jobId, runId: data.runId, status: "queued" });
 });
 
-app.get("/render/status/:jobId", (req, res) => {
-  const job = getJob(req.params.jobId);
+app.get("/render/status/:jobId", async (req, res) => {
+  const jobId = req.params.jobId;
+  const runId = String(req.query.runId || "").trim();
+  if (!runId) return res.status(400).json({ ok: false, error: "Missing runId query param" });
+
+  const job = await getJob(jobId, runId);
   if (!job) return res.status(404).json({ ok: false, error: "Job not found" });
+
   return res.json({ ok: true, job });
 });
 
