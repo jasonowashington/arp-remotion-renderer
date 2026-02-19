@@ -3,6 +3,17 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Readable } from "node:stream";
 import { createReadStream } from "node:fs";
 import { env, r2Endpoint } from "./config";
+import { HeadObjectCommand } from "@aws-sdk/client-s3";
+
+export async function existsKey(key: string, bucket: string) {
+  try {
+    await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+    return true;
+  } catch (e: any) {
+    // R2/S3: NotFound or 404
+    return false;
+  }
+}
 
 export const s3 = new S3Client({
   region: "auto",
