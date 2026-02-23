@@ -92,25 +92,65 @@ app.post("/api/r2/download", async (req, res) => {
 // 🔥 ASYNC RENDER START (NON-BLOCKING)
 app.post("/render/long/start", async (req, res) => {
   const parsed = RenderRequestSchema.safeParse(req.body);
+
   if (!parsed.success) {
-    return res.status(400).json({ ok: false, error: parsed.error.flatten() });
+    return res.status(400).json({
+      ok: false,
+      error: parsed.error.flatten(),
+    });
   }
 
   const data = parsed.data;
-
-  // Create job immediately
   const jobId = crypto.randomUUID();
-  createJob(jobId, {
-    id: jobId,
+
+  // 1️⃣ Create job IMMEDIATELY (no awaits before response)
+  createJob(jobId, data);
+
+  // 2️⃣ Respond instantly (THIS STOPS n8n hanging)
+  res.status(202).json({
+    ok: true,
+    jobId,
+    runId: data.runId,
     status: "queued",
-    request: data,
   });
 
-  // Start render in background (DO NOT await)
+  // 3️⃣ Background processing (AFTER response)
   (async () => {
     try {
       updateJob(jobId, { status: "running" });
 
+      const bucket = env.R2_BUCKET;
+
+      // 🔍 Validate R2 keys IN BACKGROUND (not before response)
+      const requiredKeys = [
+        { name: "audioKey", key: data.audioKey },
+        { name: "propsKey", key: data.propsKey },
+        { name: "captionsKey", key: data.captionsKey },
+      ];
+
+      const missing: string[] = [];
+
+      for (const k of requiredKeys) {
+        if (!k.key) {
+          missing.push(`${k.name} (empty)`);
+          continue;
+        }
+
+        const exists = await existsKey(k.key, bucket);
+        if (!exists) {
+          missing.push(`${k.name}: ${k.key}`);
+        }
+      }
+
+      if (missing.length) {
+        updateJob(jobId, {
+          status: "error",
+          error: `Missing R2 objects: ${missing.join(", ")}`,
+        });
+        return;
+      }
+
+      // 🎬 Run render (heavy task)
       const result = await renderLong(data);
 
       updateJob(jobId, {
@@ -124,14 +164,6 @@ app.post("/render/long/start", async (req, res) => {
       });
     }
   })();
-
-  // 🚀 RETURN IMMEDIATELY (prevents n8n timeout)
-  return res.status(202).json({
-    ok: true,
-    jobId,
-    runId: data.runId,
-    status: "queued",
-  });
 });
 
 app.get("/render/status/:jobId", async (req, res) => {
