@@ -90,80 +90,8 @@ app.post("/api/r2/download", async (req, res) => {
  *  ASYNC Render Long (NO HANG)
  *  ========================= */
 // 🔥 ASYNC RENDER START (NON-BLOCKING)
-app.post("/render/long/start", async (req, res) => {
-  const parsed = RenderRequestSchema.safeParse(req.body);
-
-  if (!parsed.success) {
-    return res.status(400).json({
-      ok: false,
-      error: parsed.error.flatten(),
-    });
-  }
-
-  const data = parsed.data;
-  const jobId = crypto.randomUUID();
-
-  // 1️⃣ Create job IMMEDIATELY (no awaits before response)
-  createJob(jobId, data);
-
-  // 2️⃣ Respond instantly (THIS STOPS n8n hanging)
-  res.status(202).json({
-    ok: true,
-    jobId,
-    runId: data.runId,
-    status: "queued",
-  });
-
-  // 3️⃣ Background processing (AFTER response)
-  (async () => {
-    try {
-      updateJob(jobId, { status: "running" });
-
-      const bucket = env.R2_BUCKET;
-
-      // 🔍 Validate R2 keys IN BACKGROUND (not before response)
-      const requiredKeys = [
-        { name: "audioKey", key: data.audioKey },
-        { name: "propsKey", key: data.propsKey },
-        { name: "captionsKey", key: data.captionsKey },
-      ];
-
-      const missing: string[] = [];
-
-      for (const k of requiredKeys) {
-        if (!k.key) {
-          missing.push(`${k.name} (empty)`);
-          continue;
-        }
-
-        const exists = await existsKey(k.key, bucket);
-        if (!exists) {
-          missing.push(`${k.name}: ${k.key}`);
-        }
-      }
-
-      if (missing.length) {
-        updateJob(jobId, {
-          status: "error",
-          error: `Missing R2 objects: ${missing.join(", ")}`,
-        });
-        return;
-      }
-
-      // 🎬 Run render (heavy task)
-      const result = await renderLong(data);
-
-      updateJob(jobId, {
-        status: "done",
-        result,
-      });
-    } catch (err: any) {
-      updateJob(jobId, {
-        status: "error",
-        error: err?.message || String(err),
-      });
-    }
-  })();
+app.post("/render/long/start", (_req, res) => {
+  return res.status(202).json({ ok: true, jobId: "probe", status: "queued" });
 });
 
 app.get("/render/status/:jobId", async (req, res) => {
