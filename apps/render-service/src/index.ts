@@ -11,6 +11,7 @@ import { renderLong } from "./renderLong";
 import { uploadBuffer, downloadToBuffer, signedGetUrl, existsKey } from "./r2";
 import { createJob, getJob, updateJob } from "./jobs";
 
+console.log("🚀 NEW BUILD LOADED - ASYNC RENDER HANDLER ACTIVE");
 const app = express();
 
 /** ✅ MIDDLEWARE FIRST */
@@ -90,19 +91,55 @@ app.post("/api/r2/download", async (req, res) => {
  *  ASYNC Render Long (NO HANG)
  *  ========================= */
 // 🔥 ASYNC RENDER START (NON-BLOCKING)
-app.post("/render/long/start", (_req, res) => {
-  return res.status(202).json({ ok: true, jobId: "probe", status: "queued" });
-});
+app.post("/render/long/start", (req, res) => {
+  console.log("🎬 /render/long/start HIT");
 
-app.get("/render/status/:jobId", async (req, res) => {
-  const jobId = req.params.jobId;
-  const runId = String(req.query.runId || "").trim();
-  if (!runId) return res.status(400).json({ ok: false, error: "Missing runId query param" });
+  const parsed = RenderRequestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      ok: false,
+      error: parsed.error.flatten(),
+    });
+  }
 
-  const job = await getJob(jobId, runId);
-  if (!job) return res.status(404).json({ ok: false, error: "Job not found" });
+  const data = parsed.data;
+  const jobId = crypto.randomUUID();
 
-  return res.json({ ok: true, job });
+  // Create job instantly
+  createJob(jobId, data);
+
+  // 🔥 CRITICAL: Respond immediately (NO await before this)
+  res.status(202).json({
+    ok: true,
+    jobId,
+    runId: data.runId,
+    status: "queued",
+  });
+
+  // Background render (async fire-and-forget)
+  (async () => {
+    try {
+      console.log("🎬 Background render started:", jobId);
+
+      updateJob(jobId, { status: "running" });
+
+      // IMPORTANT: Do NOT validate R2 keys BEFORE response
+      const out = await renderLong(data);
+
+      updateJob(jobId, {
+        status: "done",
+        result: out,
+      });
+
+      console.log("✅ Render completed:", jobId);
+    } catch (err: any) {
+      console.error("❌ Render failed:", err);
+      updateJob(jobId, {
+        status: "error",
+        error: err?.message || String(err),
+      });
+    }
+  })();
 });
 
 app.get("/render/long", (_req, res) => {
