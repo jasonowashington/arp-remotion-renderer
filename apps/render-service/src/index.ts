@@ -91,7 +91,7 @@ app.post("/api/r2/download", async (req, res) => {
  *  ASYNC Render Long (NO HANG)
  *  ========================= */
 // 🔥 ASYNC RENDER START (NON-BLOCKING)
-app.post("/render/long/start", (req, res) => {
+app.post("/render/long/start", async (req, res) => {
   console.log("🎬 /render/long/start HIT");
 
   const parsed = RenderRequestSchema.safeParse(req.body);
@@ -123,8 +123,14 @@ app.post("/render/long/start", (req, res) => {
 
       updateJob(jobId, { status: "running" });
 
-      // IMPORTANT: Do NOT validate R2 keys BEFORE response
-      const out = await renderLong(data);
+      const timeoutPromise = new Promise((_, reject) =>
+  setTimeout(() => reject(new Error("Render timeout after 15 minutes")), 900000)
+);
+
+const out = await Promise.race([
+  renderLong(data),
+  timeoutPromise,
+]);
 
       updateJob(jobId, {
         status: "done",
@@ -140,6 +146,32 @@ app.post("/render/long/start", (req, res) => {
       });
     }
   })();
+});
+
+/** =========================
+ *  JOB STATUS (REQUIRED FOR N8N POLLING)
+ *  ========================= */
+app.get("/render/status/:jobId", async (req, res) => {
+  console.log("📊 Status check for job:", req.params.jobId);
+
+  const job = await getJob(req.params.jobId, req.query.runId as string);
+
+  if (!job) {
+    return res.status(404).json({
+      ok: false,
+      error: "Job not found",
+      jobId: req.params.jobId,
+    });
+  }
+
+  return res.json({
+    ok: true,
+    jobId: job.id,
+    status: job.status,
+    result: job.result || null,
+    error: job.error || null,
+    updatedAt: job.updatedAt,
+  });
 });
 
 app.get("/render/long", (_req, res) => {
