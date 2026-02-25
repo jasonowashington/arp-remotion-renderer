@@ -8,10 +8,11 @@ import { env } from "./config";
 import { logger } from "./logger";
 import { RenderRequestSchema } from "./schema";
 import { renderLong } from "./renderLong";
-import { uploadBuffer, downloadToBuffer, signedGetUrl, existsKey } from "./r2";
+import { uploadBuffer, downloadToBuffer, signedGetUrl } from "./r2";
 import { createJob, getJob, updateJob } from "./jobs";
 
-console.log("🚀 NEW BUILD LOADED - ASYNC RENDER HANDLER ACTIVE");
+console.log("🚀 ARP Render Service booted (async jobs enabled)");
+
 const app = express();
 
 /** ✅ MIDDLEWARE FIRST */
@@ -30,17 +31,11 @@ const getHealthPayload = () => ({
   time: new Date().toISOString(),
 });
 
-const writeJobToR2 = async (runId: string, jobId: string, job: any) => {
-  const existing = await getJob(jobId, runId);
-  if (existing) {
-    await (updateJob as any)(jobId, runId, job);
-    return;
-  }
-  await (createJob as any)(jobId, runId, job);
-};
-
+/** ✅ HEALTH */
 app.get("/health", (_req, res) => res.json(getHealthPayload()));
-app.get("/render/health", (_req, res) => res.status(200).json({ ok: true, service: "arp-remotion-renderer", ts: Date.now() }));
+app.get("/render/health", (_req, res) =>
+  res.status(200).json({ ok: true, service: "arp-remotion-renderer", ts: Date.now() })
+);
 
 /** =========================
  *  R2 Proxy Endpoints
@@ -57,6 +52,7 @@ app.post("/api/r2/upload", upload.single("file"), async (req, res) => {
 
     await uploadBuffer(key, req.file.buffer, finalContentType, finalBucket);
 
+    // Sign manifest uploads only
     const shouldSign = key.endsWith("/manifest.json") || key === "manifest.json";
     const manifestUrl = shouldSign ? await signedGetUrl(key, finalBucket) : undefined;
 
@@ -88,27 +84,21 @@ app.post("/api/r2/download", async (req, res) => {
 });
 
 /** =========================
- *  ASYNC Render Long (NO HANG)
+ *  ASYNC RENDER LONG (NON-BLOCKING)
  *  ========================= */
-// 🔥 ASYNC RENDER START (NON-BLOCKING)
-app.post("/render/long/start", async (req, res) => {
-  console.log("🎬 /render/long/start HIT");
-
+app.post("/render/long/start", (req, res) => {
   const parsed = RenderRequestSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({
-      ok: false,
-      error: parsed.error.flatten(),
-    });
+    return res.status(400).json({ ok: false, error: parsed.error.flatten() });
   }
 
   const data = parsed.data;
   const jobId = crypto.randomUUID();
 
-  // Create job instantly
+  // Create job synchronously (no awaits)
   createJob(jobId, data);
 
-  // 🔥 CRITICAL: Respond immediately (NO await before this)
+  // ✅ Respond immediately so n8n never hangs
   res.status(202).json({
     ok: true,
     jobId,
@@ -116,71 +106,55 @@ app.post("/render/long/start", async (req, res) => {
     status: "queued",
   });
 
-  // Background render (async fire-and-forget)
+  // Fire-and-forget background render
   (async () => {
     try {
-      console.log("🎬 Background render started:", jobId);
-
       updateJob(jobId, { status: "running" });
 
-      const timeoutPromise = new Promise((_, reject) =>
-  setTimeout(() => reject(new Error("Render timeout after 15 minutes")), 900000)
-);
+      const out = await renderLong(data);
 
-const out = await Promise.race([
-  renderLong(data),
-  timeoutPromise,
-]);
-
-      updateJob(jobId, {
-        status: "done",
-        result: out,
-      });
-
-      console.log("✅ Render completed:", jobId);
+      updateJob(jobId, { status: "done", result: out });
     } catch (err: any) {
-      console.error("❌ Render failed:", err);
-      updateJob(jobId, {
-        status: "error",
-        error: err?.message || String(err),
-      });
+      updateJob(jobId, { status: "error", error: err?.message || String(err) });
+      logger.error("Render failed:", err);
     }
   })();
 });
 
-/** =========================
- *  JOB STATUS (REQUIRED FOR N8N POLLING)
- *  ========================= */
-app.get("/render/status/:jobId", async (req, res) => {
-  console.log("📊 Status check for job:", req.params.jobId);
+/** ✅ STATUS ENDPOINT (THIS WAS MISSING) */
+app.get("/render/status/:jobId", (req, res) => {
+  const { jobId } = req.params;
+  const { runId } = req.query;
 
-  const job = await getJob(req.params.jobId, req.query.runId as string);
+  if (!runId) {
+    return res.status(400).json({ ok: false, error: "Missing 'runId' query parameter" });
+  }
 
+  const job = getJob(jobId, String(runId));
   if (!job) {
-    return res.status(404).json({
-      ok: false,
-      error: "Job not found",
-      jobId: req.params.jobId,
-    });
+    // Always return JSON (never HTML)
+    return res.status(404).json({ ok: false, error: "Job not found", jobId });
   }
 
   return res.json({
     ok: true,
-    jobId: job.id,
-    status: job.status,
-    result: job.result || null,
-    error: job.error || null,
-    updatedAt: job.updatedAt,
+    job, // job.status is inside here
   });
 });
 
-app.get("/render/long", (_req, res) => {
-  res.status(405).json({ ok: false, error: "Method not allowed. Use POST /render/long with a JSON body." });
-});
+/** ✅ Friendly method guard */
+app.get("/render/long/start", (_req, res) =>
+  res.status(405).json({ ok: false, error: "Method not allowed. Use POST /render/long/start" })
+);
 
-// Root routes
+/** Root routes */
 app.get("/", (_req, res) => res.status(200).type("text").send("ARP Remotion Renderer is online ✅"));
 app.get("/favicon.ico", (_req, res) => res.sendStatus(204));
+
+/** ✅ JSON 404 handler (prevents HTML that breaks n8n JSON parsing) */
+app.use((_req, res) => {
+  res.status(404).json({ ok: false, error: "Not found" });
+});
 
 process.on("uncaughtException", (err) => console.error("UNCAUGHT_EXCEPTION", err));
 process.on("unhandledRejection", (err) => console.error("UNHANDLED_REJECTION", err));
