@@ -1,7 +1,3 @@
-// jobs.ts
-import { uploadBuffer, downloadToBuffer } from "./r2";
-import { env } from "./config";
-
 export type JobStatus = "queued" | "running" | "done" | "error";
 
 export type JobRecord = {

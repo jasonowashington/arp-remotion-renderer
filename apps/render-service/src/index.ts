@@ -86,7 +86,7 @@ app.post("/api/r2/download", async (req, res) => {
 /** =========================
  *  ASYNC RENDER LONG (NON-BLOCKING)
  *  ========================= */
-app.post("/render/long/start", (req, res) => {
+const handleRenderLong = (req: express.Request, res: express.Response) => {
   const parsed = RenderRequestSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ ok: false, error: parsed.error.flatten() });
@@ -119,18 +119,17 @@ app.post("/render/long/start", (req, res) => {
       logger.error("Render failed:", err);
     }
   })();
-});
+};
+
+// Support both /render/long and /render/long/start for compatibility
+app.post("/render/long", handleRenderLong);
+app.post("/render/long/start", handleRenderLong);
 
 /** ✅ STATUS ENDPOINT (THIS WAS MISSING) */
 app.get("/render/status/:jobId", (req, res) => {
   const { jobId } = req.params;
-  const { runId } = req.query;
 
-  if (!runId) {
-    return res.status(400).json({ ok: false, error: "Missing 'runId' query parameter" });
-  }
-
-  const job = getJob(jobId, String(runId));
+  const job = getJob(jobId);
   if (!job) {
     // Always return JSON (never HTML)
     return res.status(404).json({ ok: false, error: "Job not found", jobId });
@@ -143,6 +142,9 @@ app.get("/render/status/:jobId", (req, res) => {
 });
 
 /** ✅ Friendly method guard */
+app.get("/render/long", (_req, res) =>
+  res.status(405).json({ ok: false, error: "Method not allowed. Use POST /render/long" })
+);
 app.get("/render/long/start", (_req, res) =>
   res.status(405).json({ ok: false, error: "Method not allowed. Use POST /render/long/start" })
 );
