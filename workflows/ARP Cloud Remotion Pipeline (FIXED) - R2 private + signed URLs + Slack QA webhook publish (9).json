@@ -1289,10 +1289,10 @@
           "conditions": [
             {
               "id": "complete-check",
-              "leftValue": "{{ $json.isComplete }}",
-              "rightValue": "true",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "done",
               "operator": {
-                "type": "boolean",
+                "type": "string",
                 "operation": "equals",
                 "name": "filter.operator.equals"
               }
