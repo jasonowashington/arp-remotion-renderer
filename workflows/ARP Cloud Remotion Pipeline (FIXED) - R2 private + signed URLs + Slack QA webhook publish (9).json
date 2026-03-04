@@ -472,7 +472,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const outline = $('Parse Outline JSON').item.json.outline;\nconst scriptPack = $('Apply Compliance Fixes').item.json.scriptPack;\nconst r2Prefix = $('Set Manifest').item.json.r2Prefix;\nconst renderResponse = $json;\n\nif (!outline) throw new Error('Missing outline');\nif (!scriptPack) throw new Error('Missing scriptPack');\n\nconst videoUrl = renderResponse.videoUrl || renderResponse.signedUrl || '';\nconst logUrl = renderResponse.logUrl || '';\n\nconst titleBase = outline?.title || scriptPack?.title || 'Automated Realty Playbook';\nconst youtubeTitle = titleBase.length > 95 ? titleBase.slice(0, 95) : titleBase;\n\nconst affiliateDisclosure = 'Disclosure: Some links may be affiliate links. I may earn a commission at no extra cost to you.';\n\nconst youtubeDescription = [\n  (outline?.hook ? outline.hook + '\\n' : ''),\n  'In this video, we break down practical ways to use AI to automate your real estate workflow—lead follow-up, listings, content, and deal analysis.',\n  '',\n  '✅ Subscribe for more AI + real estate automation.',\n  '',\n  affiliateDisclosure,\n  '',\n  (scriptPack?.disclaimer || 'Not legal, tax, or financial advice. Consult a professional.')\n].join('\\n');\n\nconst youtubeTags = [\n  'ai real estate',\n  'real estate automation',\n  'chatgpt real estate',\n  'real estate ai tools',\n  'automated realty playbook'\n];\n\nreturn $input.all().map(item => ({\n  json: {\n    runId: $('Set Manifest').item.json.runId,\n    r2Bucket: $('Set Manifest').item.json.r2Bucket,\n    r2Prefix,\n    videoUrl,\n    logUrl,\n    youtubeTitle,\n    youtubeDescription,\n    youtubeTags,\n    hashtags: ['#AI', '#RealEstate', '#Automation'],\n    pinnedComment: 'Want the free AI toolkit? Comment TOOLKIT and I will send it.',\n    affiliateDisclosure,\n    privacyStatus: 'private',\n    categoryId: '26'\n  },\n  pairedItem: item.pairedItem\n}));"
+        "jsCode": "const outline = $('Parse Outline JSON').item.json.outline;\nconst scriptPack = $('Apply Compliance Fixes').item.json.scriptPack;\nconst r2Prefix = $('Set Manifest').item.json.r2Prefix;\nconst statusResponse = $json;\n\nif (!outline) throw new Error('Missing outline');\nif (!scriptPack) throw new Error('Missing scriptPack');\n\n// Extract signed URLs from the correct path\nconst videoUrl = statusResponse?.body?.signed?.videoUrl || statusResponse?.signed?.videoUrl || statusResponse?.videoUrl || '';\nconst logUrl = statusResponse?.body?.signed?.logUrl || statusResponse?.signed?.logUrl || statusResponse?.logUrl || '';\n\nif (!videoUrl) {\n  console.warn('Warning: videoUrl not found in response. Full response:', JSON.stringify(statusResponse, null, 2));\n}\n\nconst titleBase = outline?.title || scriptPack?.title || 'Automated Realty Playbook';\nconst youtubeTitle = titleBase.length > 95 ? titleBase.slice(0, 95) : titleBase;\n\nconst affiliateDisclosure = 'Disclosure: Some links may be affiliate links. I may earn a commission at no extra cost to you.';\n\nconst youtubeDescription = [\n  (outline?.hook ? outline.hook + '\\n' : ''),\n  'In this video, we break down practical ways to use AI to automate your real estate workflow—lead follow-up, listings, content, and deal analysis.',\n  '',\n  '✅ Subscribe for more AI + real estate automation.',\n  '',\n  affiliateDisclosure,\n  '',\n  (scriptPack?.disclaimer || 'Not legal, tax, or financial advice. Consult a professional.')\n].join('\\n');\n\nconst youtubeTags = [\n  'ai real estate',\n  'real estate automation',\n  'chatgpt real estate',\n  'real estate ai tools',\n  'automated realty playbook'\n];\n\nreturn $input.all().map(item => ({\n  json: {\n    runId: $('Set Manifest').item.json.runId,\n    r2Bucket: $('Set Manifest').item.json.r2Bucket,\n    r2Prefix,\n    videoUrl,\n    logUrl,\n    youtubeTitle,\n    youtubeDescription,\n    youtubeTags,\n    hashtags: ['#AI', '#RealEstate', '#Automation'],\n    pinnedComment: 'Want the free AI toolkit? Comment TOOLKIT and I will send it.',\n    affiliateDisclosure,\n    privacyStatus: 'private',\n    categoryId: '26'\n  },\n  pairedItem: item.pairedItem\n}));"
       },
       "id": "745e1587-493d-4452-b361-6625ad404c2b",
       "name": "Prepare YouTube Metadata",
@@ -1263,7 +1263,7 @@
           "conditions": [
             {
               "id": "760ed212-7088-4da0-81cb-10f01fac515f",
-              "leftValue": "=={{$json.body.job.status}}",
+              "leftValue": "{{$json.body.job.status}}",
               "rightValue": "done",
               "operator": {
                 "type": "string",
@@ -1272,7 +1272,7 @@
               }
             }
           ],
-          "combinator": "or"
+          "combinator": "and"
         },
         "options": {}
       },
