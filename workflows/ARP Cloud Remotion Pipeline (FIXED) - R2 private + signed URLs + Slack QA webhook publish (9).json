@@ -1222,6 +1222,19 @@
     },
     {
       "parameters": {
+        "jsCode": "// Preserve retry count through the wait loop\nreturn [{\n  json: {\n    ...($json || {}),\n    retryCount: ($json.retryCount ?? 0)\n  }\n}];"
+      },
+      "id": "preserve-retry-count",
+      "name": "Preserve Retry Count",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        22550,
+        26560
+      ]
+    },
+    {
+      "parameters": {
         "url": "={{ 'https://arp-remotion-renderer.onrender.com/render/status/' + $node[\"Render Long (Render.com API)\"].json.jobId + '?runId=' + $node[\"Render Long (Render.com API)\"].json.runId }}",
         "sendHeaders": true,
         "headerParameters": {
@@ -1253,6 +1266,19 @@
     },
     {
       "parameters": {
+        "jsCode": "// Extract status from the response and add retry counter\nconst response = $json;\nconsole.log('Full Response:', JSON.stringify(response, null, 2));\n\n// Get the status value - handle multiple possible path structures\nlet status = '';\nlet ok = false;\nlet errorMsg = null;\n\nif (response?.body?.job?.status) {\n  status = response.body.job.status;\n  ok = response?.body?.ok ?? true;\n  errorMsg = response?.body?.job?.error;\n} else if (response?.job?.status) {\n  status = response.job.status;\n  ok = response?.ok ?? true;\n  errorMsg = response?.job?.error;\n} else {\n  console.error('Could not find status in response:', response);\n  status = 'unknown';\n}\n\nconsole.log('Extracted status:', status);\nconsole.log('Extracted ok:', ok);\nconsole.log('Extracted error:', errorMsg);\n\n// Add/increment retry counter from previous attempts\nconst retryCount = ($json.retryCount ?? 0) + 1;\nconst maxRetries = 120; // ~1 hour with 45s waits (120 * 45 = 5400s)\n\nreturn [{\n  json: {\n    ...response,\n    status,\n    ok,\n    error: errorMsg,\n    retryCount,\n    maxRetries,\n    isComplete: status === 'done',\n    isError: status === 'error' || !ok,\n    isTimeout: retryCount >= maxRetries\n  }\n}];"
+      },
+      "id": "debug-status-extraction",
+      "name": "Debug Status Extract",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        22800,
+        26560
+      ]
+    },
+    {
+      "parameters": {
         "conditions": {
           "options": {
             "caseSensitive": true,
@@ -1262,11 +1288,11 @@
           },
           "conditions": [
             {
-              "id": "760ed212-7088-4da0-81cb-10f01fac515f",
-              "leftValue": "{{$json.body.job.status}}",
-              "rightValue": "done",
+              "id": "complete-check",
+              "leftValue": "{{ $json.isComplete }}",
+              "rightValue": "true",
               "operator": {
-                "type": "string",
+                "type": "boolean",
                 "operation": "equals",
                 "name": "filter.operator.equals"
               }
@@ -1279,7 +1305,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        22848,
+        22960,
         26560
       ],
       "id": "9fd4c984-19b5-4b2d-8fa2-6865ee6778bb",
@@ -1796,6 +1822,17 @@
       "main": [
         [
           {
+            "node": "Preserve Retry Count",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preserve Retry Count": {
+      "main": [
+        [
+          {
             "node": "Request Status",
             "type": "main",
             "index": 0
@@ -1804,6 +1841,17 @@
       ]
     },
     "Request Status": {
+      "main": [
+        [
+          {
+            "node": "Debug Status Extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Debug Status Extract": {
       "main": [
         [
           {
