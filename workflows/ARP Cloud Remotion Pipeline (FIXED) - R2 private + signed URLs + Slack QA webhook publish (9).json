@@ -518,6 +518,7 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "slack-interaction-arp",
+        "responseMode": "onReceived",
         "options": {}
       },
       "id": "d0429799-8ea4-42d4-914c-af689fe58af2",
@@ -532,7 +533,64 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = $json.body || {};\nlet payloadStr = body.payload;\nif (!payloadStr && typeof body === 'string' && body.startsWith('payload=')) payloadStr = decodeURIComponent(body.slice('payload='.length));\nif (!payloadStr) throw new Error(\"Missing Slack interactivity payload\");\nconst payload = JSON.parse(payloadStr);\nconst raw = payload.actions?.[0]?.value || \"\";\nconst [status, runId] = raw.split(\"|\");\nif (!status || !runId) throw new Error(\"Missing status/runId in Slack button value\");\nreturn [{json: {status, runId, payload}}];\n"
+        "jsCode": "// Parse Slack interaction payload (URL-encoded form data)
+const fullData = $json;
+console.log('Slack Webhook Raw Data:', JSON.stringify(fullData, null, 2));
+
+// Slack sends data as URL-encoded form data in the body
+const body = fullData.body || {};
+let payloadStr = body.payload;
+
+// Handle URL-encoded payload format
+if (!payloadStr && typeof body === 'string' && body.startsWith('payload=')) {
+  payloadStr = decodeURIComponent(body.slice('payload='.length));
+} else if (!payloadStr && typeof body === 'object' && body.payload) {
+  payloadStr = body.payload;
+  // If payload is already an object, use it directly
+  if (typeof payloadStr === 'object') {
+    return [{ json: { ...fullData, slackPayload: payloadStr, status: 'received' } }];
+  }
+}
+
+if (!payloadStr) {
+  console.error('Missing Slack payload. Received:', JSON.stringify(fullData, null, 2));
+  throw new Error('Missing Slack interactivity payload');
+}
+
+let payload;
+try {
+  payload = typeof payloadStr === 'string' ? JSON.parse(payloadStr) : payloadStr;
+} catch (e) {
+  console.error('Failed to parse payload:', payloadStr, 'Error:', e.message);
+  throw new Error('Failed to parse Slack payload: ' + e.message);
+}
+
+console.log('Parsed Slack Payload:', JSON.stringify(payload, null, 2));
+
+// Extract approval status and runId from button value
+const raw = payload.actions?.[0]?.value || '';
+if (!raw) {
+  console.error('No action value found in payload');
+  throw new Error('Missing button value in Slack action');
+}
+
+const [status, runId] = raw.split('|');
+if (!status || !runId) {
+  throw new Error(`Invalid button value format. Expected 'status|runId', got: ${raw}`);
+}
+
+console.log('Extracted Status:', status, 'RunId:', runId);
+
+return [{
+  json: {
+    status: status.trim().toLowerCase(),
+    runId: runId.trim(),
+    slackPayload: payload,
+    userId: payload.user?.id,
+    teamId: payload.team?.id,
+    triggerId: payload.trigger_id
+  }
+}];"
       },
       "id": "3d48269e-a251-4b10-9b0b-aabcf7a6fde3",
       "name": "Parse Slack Approval",
@@ -541,7 +599,8 @@
       "position": [
         22032,
         26784
-      ]
+      ],
+      "onError": "stopWorkflow"
     },
     {
       "parameters": {
