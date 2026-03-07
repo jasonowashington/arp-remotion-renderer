@@ -532,65 +532,8 @@
       "webhookId": "c8f66f85-740c-464a-ab7c-f6bd64c1335f"
     },
     {
-      "parameters": {
-        "jsCode": "// Parse Slack interaction payload (URL-encoded form data)
-const fullData = $json;
-console.log('Slack Webhook Raw Data:', JSON.stringify(fullData, null, 2));
-
-// Slack sends data as URL-encoded form data in the body
-const body = fullData.body || {};
-let payloadStr = body.payload;
-
-// Handle URL-encoded payload format
-if (!payloadStr && typeof body === 'string' && body.startsWith('payload=')) {
-  payloadStr = decodeURIComponent(body.slice('payload='.length));
-} else if (!payloadStr && typeof body === 'object' && body.payload) {
-  payloadStr = body.payload;
-  // If payload is already an object, use it directly
-  if (typeof payloadStr === 'object') {
-    return [{ json: { ...fullData, slackPayload: payloadStr, status: 'received' } }];
-  }
-}
-
-if (!payloadStr) {
-  console.error('Missing Slack payload. Received:', JSON.stringify(fullData, null, 2));
-  throw new Error('Missing Slack interactivity payload');
-}
-
-let payload;
-try {
-  payload = typeof payloadStr === 'string' ? JSON.parse(payloadStr) : payloadStr;
-} catch (e) {
-  console.error('Failed to parse payload:', payloadStr, 'Error:', e.message);
-  throw new Error('Failed to parse Slack payload: ' + e.message);
-}
-
-console.log('Parsed Slack Payload:', JSON.stringify(payload, null, 2));
-
-// Extract approval status and runId from button value
-const raw = payload.actions?.[0]?.value || '';
-if (!raw) {
-  console.error('No action value found in payload');
-  throw new Error('Missing button value in Slack action');
-}
-
-const [status, runId] = raw.split('|');
-if (!status || !runId) {
-  throw new Error(`Invalid button value format. Expected 'status|runId', got: ${raw}`);
-}
-
-console.log('Extracted Status:', status, 'RunId:', runId);
-
-return [{
-  json: {
-    status: status.trim().toLowerCase(),
-    runId: runId.trim(),
-    slackPayload: payload,
-    userId: payload.user?.id,
-    teamId: payload.team?.id,
-    triggerId: payload.trigger_id
-  }
-}];"
+"parameters": {
+  "jsCode": "// Parse Slack interaction payload (URL-encoded form data)\nconst fullData = $json;\nconsole.log('Slack Webhook Raw Data:', JSON.stringify(fullData, null, 2));\n\n// Slack sends data as URL-encoded form data in the body\nconst body = fullData.body || {};\nlet payloadStr = body.payload;\n\n// Handle URL-encoded payload format\nif (!payloadStr && typeof body === 'string' && body.startsWith('payload=')) {\n  payloadStr = decodeURIComponent(body.slice('payload='.length));\n} else if (!payloadStr && typeof body === 'object' && body.payload) {\n  payloadStr = body.payload;\n  // If payload is already an object, use it directly\n  if (typeof payloadStr === 'object') {\n    return [{ json: { ...fullData, slackPayload: payloadStr, status: 'received' } }];\n  }\n}\n\nif (!payloadStr) {\n  console.error('Missing Slack payload. Received:', JSON.stringify(fullData, null, 2));\n  throw new Error('Missing Slack interactivity payload');\n}\n\nlet payload;\ntry {\n  payload = typeof payloadStr === 'string' ? JSON.parse(payloadStr) : payloadStr;\n} catch (e) {\n  console.error('Failed to parse payload:', payloadStr, 'Error:', e.message);\n  throw new Error('Failed to parse Slack payload: ' + e.message);\n}\n\nconsole.log('Parsed Slack Payload:', JSON.stringify(payload, null, 2));\n\n// Extract approval status and runId from button value\nconst raw = payload.actions?.[0]?.value || '';\nif (!raw) {\n  console.error('No action value found in payload');\n  throw new Error('Missing button value in Slack action');\n}\n\nconst [status, runId] = raw.split('|');\nif (!status || !runId) {\n  throw new Error(`Invalid button value format. Expected 'status|runId', got: ${raw}`);\n}\n\nconsole.log('Extracted Status:', status, 'RunId:', runId);\n\nreturn [{\n  json: {\n    status: status.trim().toLowerCase(),\n    runId: runId.trim(),\n    slackPayload: payload,\n    userId: payload.user?.id,\n    teamId: payload.team?.id,\n    triggerId: payload.trigger_id\n  }\n}];"
       },
       "id": "3d48269e-a251-4b10-9b0b-aabcf7a6fde3",
       "name": "Parse Slack Approval",
@@ -785,8 +728,8 @@ return [{
           "value": "#video-qa-approval"
         },
         "messageType": "block",
-        "blocksUi": "=[\n  {\"type\":\"header\",\"text\":{\"type\":\"plain_text\",\"text\":\"🎬 ARP VIDEO READY FOR QA\"}},\n  {\"type\":\"section\",\"fields\":[\n    {\"type\":\"mrkdwn\",\"text\":\"*Run ID:*\\n{{ $json.runId }}\"},\n    {\"type\":\"mrkdwn\",\"text\":\"*Title:*\\n{{ $json.youtubeTitle }}\"}\n  ]},\n  {\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*Signed Video:*\\n<{{ $json.videoUrl }}|Open Rendered MP4>\\n*Logs:*\\n<{{ $json.logUrl }}|Open Render Log>\\n*Manifest:*\\n<{{ $json.manifestUrl }}|View Manifest>\"}},\n  {\"type\":\"divider\"},\n  {\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"Approve to publish to YouTube (private). Reject to stop.\"}},\n  {\"type\":\"actions\",\"elements\":[\n    {\"type\":\"button\",\"text\":{\"type\":\"plain_text\",\"text\":\"✅ Approve\"},\"style\":\"primary\",\"value\":\"approved|{{ $json.runId }}\",\"action_id\":\"approve_video\"},\n    {\"type\":\"button\",\"text\":{\"type\":\"plain_text\",\"text\":\"❌ Reject\"},\"style\":\"danger\",\"value\":\"rejected|{{ $json.runId }}\",\"action_id\":\"reject_video\"}\n  ]}\n]",
-        "text": "ARP video ready for QA",
+        "blocksUi": "={{ (() => {\n  const runId = $json.runId || 'missing_runId';\n  const title = $json.youtubeTitle || 'missing_topic';\n  const videoUrl = $json.videoUrl || '';\n  const logUrl = $json.logUrl || '';\n  const manifestUrl = $json.manifestUrl || '';\n\n  return [\n    {\n      type: 'header',\n      text: { type: 'plain_text', text: '🎬 ARP VIDEO READY FOR QA' }\n    },\n    {\n      type: 'section',\n      fields: [\n        { type: 'mrkdwn', text: `*Run ID:*\\n${runId}` },\n        { type: 'mrkdwn', text: `*Title:*\\n${title}` }\n      ]\n    },\n    {\n      type: 'section',\n      text: {\n        type: 'mrkdwn',\n        text: `*Signed Video:*\\n<${videoUrl}|Open Rendered MP4>\\n*Logs:*\\n<${logUrl}|Open Render Log>\\n*Manifest:*\\n<${manifestUrl}|View Manifest>`\n      }\n    },\n    { type: 'divider' },\n    {\n      type: 'section',\n      text: { type: 'mrkdwn', text: 'Approve to publish to YouTube (private). Reject to stop.' }\n    },\n    {\n      type: 'actions',\n      elements: [\n        {\n          type: 'button',\n          text: { type: 'plain_text', text: '✅ Approve' },\n          style: 'primary',\n          value: `approved|${runId}`,\n          action_id: 'approve_video'\n        },\n        {\n          type: 'button',\n          text: { type: 'plain_text', text: '❌ Reject' },\n          style: 'danger',\n          value: `rejected|${runId}`,\n          action_id: 'reject_video'\n        }\n      ]\n    }\n  ];\n})() }}",
+        "text": "={{ `ARP video ready for QA (${ $json.runId || 'missing_runId' })` }}",
         "otherOptions": {}
       },
       "id": "d500af72-2e3f-4dd9-b083-74c7a25182c7",
