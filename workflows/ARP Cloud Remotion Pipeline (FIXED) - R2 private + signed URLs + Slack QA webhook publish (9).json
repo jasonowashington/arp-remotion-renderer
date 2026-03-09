@@ -1237,7 +1237,7 @@
     },
     {
       "parameters": {
-        "url": "={{ (() => {\n  const base = ($('Set Manifest').item.json.renderApiBase || 'https://arp-remotion-renderer.onrender.com').replace(/\/$/, '');\n  const jobId = $node[\"Render Long (Render.com API)\"].json.jobId;\n  const runId = $node[\"Render Long (Render.com API)\"].json.runId || $json.runId || '';\n  if (!jobId) throw new Error('Request Status: missing jobId from Render Long response');\n  return `${base}/render/status/${jobId}?runId=${encodeURIComponent(runId)}`;\n})() }}",
+        "url": "={{ (() => {\n  const rawBase = $('Set Manifest').item.json.renderApiBase || 'https://arp-remotion-renderer.onrender.com';\n  const base = String(rawBase).endsWith('/') ? String(rawBase).slice(0, -1) : String(rawBase);\n  const jobId = $node[\"Render Long (Render.com API)\"].json.jobId;\n  const runId = $node[\"Render Long (Render.com API)\"].json.runId || $json.runId || '';\n  if (!jobId) throw new Error('Request Status: missing jobId from Render Long response');\n  return `${base}/render/status/${jobId}?runId=${encodeURIComponent(runId)}`;\n})() }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
