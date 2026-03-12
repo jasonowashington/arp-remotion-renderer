@@ -969,7 +969,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const runId = $('Set Manifest').item.json.runId;\nconst r2Prefix = $('Set Manifest').item.json.r2Prefix;\n\nif (!runId) {\n  throw new Error('Missing runId for render request');\n}\nif (!r2Prefix) {\n  throw new Error('Missing r2Prefix for render request');\n}\n\nconsole.log('Validation passed for Render Long. runId:', runId);\nconsole.log('r2Prefix:', r2Prefix);\n\nreturn $input.all().map(item => ({\n  json: { ...item.json, runId, r2Prefix },\n  pairedItem: item.pairedItem\n}));"
+        "jsCode": "const runId = $('Set Manifest').item.json.runId;\nconst r2Prefix = $('Set Manifest').item.json.r2Prefix;\n\nif (!runId) {\n  throw new Error('Missing runId for render request');\n}\nif (!r2Prefix) {\n  throw new Error('Missing r2Prefix for render request');\n}\n\nconst allItems = $input.all();\nif (!allItems.length) {\n  throw new Error('Validate Before Render received no input items');\n}\n\n// Merge After Uploads can produce multiple items for the same run.\n// Start exactly ONE render job per run to avoid duplicate jobIds and poll timeouts.\nconst first = allItems[0];\nconsole.log('Validation passed for Render Long. runId:', runId);\nconsole.log('r2Prefix:', r2Prefix);\nconsole.log('Input item count into Validate Before Render:', allItems.length);\n\nreturn [{\n  json: { ...first.json, runId, r2Prefix },\n  pairedItem: first.pairedItem\n}];"
       },
       "id": "f7d21ba9-90fb-421a-973d-5890b777b909",
       "name": "Validate Before Render",
