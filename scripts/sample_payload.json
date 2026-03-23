@@ -1,0 +1,9 @@
+{
+  "runId": "arp_20260321_163302",
+  "composition": "ARP-Long-16x9",
+  "audioKey": "runs/arp_20260321_163302/audio/vo.mp3",
+  "propsKey": "runs/arp_20260321_163302/input/props.json",
+  "captionsKey": "runs/arp_20260321_163302/captions/en.srt",
+  "outputKey": "runs/arp_20260321_163302/final/final_16x9.mp4",
+  "logKey": "runs/arp_20260321_163302/logs/render_long.log"
+}

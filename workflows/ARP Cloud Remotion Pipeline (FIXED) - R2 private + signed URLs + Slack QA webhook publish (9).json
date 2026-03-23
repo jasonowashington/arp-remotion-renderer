@@ -86,7 +86,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\n  \"model\": \"gpt-4o-mini\",\n  \"temperature\": 0.4,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are ARP StrategyAgent for the Automated Realty Playbook YouTube channel. Return ONLY valid JSON. No markdown. No commentary.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Create a video strategy object for a faceless YouTube video about using AI in real estate. Output JSON with keys: topic, targetAudience, valueProposition, tone, videoLengthSeconds, keyPoints (string[]), complianceNotes (string[]), visualStyleNotes (string[]).\"\n    }\n  ],\n  \"response_format\": {\n    \"type\": \"json_object\"\n  }\n}",
+        "jsonBody": "{\n  \"model\": \"gpt-4o-mini\",\n  \"temperature\": 0.4,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are ARP StrategyAgent for the Automated Realty Playbook YouTube channel. Return ONLY valid JSON. No markdown. No commentary. Stay strictly inside AI + real estate workflows, brokerage automation, investor analysis, listings, lead follow-up, CRM automation, marketing automation, or transaction coordination. Never drift into generic productivity, time management, motivation, or self-help.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Create a video strategy object for a premium faceless YouTube video about using AI in real estate. The topic must be directly relevant to agents, brokers, team leaders, investors, or real estate marketers. Output JSON with keys: topic, targetAudience, valueProposition, tone, videoLengthSeconds, keyPoints (string[]), complianceNotes (string[]), visualStyleNotes (string[]). visualStyleNotes must describe cinematic luxury-real-estate visuals, dashboard overlays, MLS-style interfaces, market charts, elegant property imagery, and premium faceless YouTube pacing.\"\n    }\n  ],\n  \"response_format\": {\n    \"type\": \"json_object\"\n  }\n}",
         "options": {
           "timeout": 180000
         }
@@ -140,7 +140,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"temperature\": 0.4,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are ARP OutlineAgent. Return ONLY valid JSON. No markdown. No commentary.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Using this strategy JSON: {{$json.strategy}}, produce a detailed outline for a faceless YouTube video. Output JSON with keys: title, hook, sections (array of {title, bullets:string[]}), cta.\"\n    }\n  ],\n  \"response_format\": {\n    \"type\": \"json_object\"\n  }\n}",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"temperature\": 0.4,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are ARP OutlineAgent. Return ONLY valid JSON. No markdown. No commentary. Every section must stay on AI + real estate workflows. Use a premium faceless YouTube structure with luxury-real-estate visuals, strong hooks, dashboard moments, market data moments, and a clear CTA.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Using this strategy JSON: {{$json.strategy}}, produce a detailed outline for a faceless YouTube video. Output JSON with keys: title, hook, sections, cta. sections must be an array of objects with keys: title, subtitle, bullets (string[]), type, durationSec, lowerThird, uiMock, stat, visualPrompt. uiMock must be an object with keys style, title, lines. type must be one of HOOK, TOOL, STAT, CTA. visualPrompt must describe a cinematic real-estate visual for OpenAI image generation. The topic must remain strictly about AI + real estate, never generic productivity.\"\n    }\n  ],\n  \"response_format\": {\n    \"type\": \"json_object\"\n  }\n}",
         "options": {
           "timeout": 180000
         }
@@ -389,7 +389,164 @@
     },
     {
       "parameters": {
-        "jsCode": "const outline = $('Parse Outline JSON').item.json.outline;\nconst scriptPack = $('Apply Compliance Fixes').item.json.scriptPack;\nconst r2Prefix = $('Set Manifest').item.json.r2Prefix;\n\nif (!outline) throw new Error(\"Missing outline\");\nif (!scriptPack) throw new Error(\"Missing scriptPack\");\n\nconst scenes = (outline.sections || []).map((s, idx) => ({\n  type: \"panel\",\n  headline: s.title || `Section ${idx + 1}`,\n  bullets: Array.isArray(s.bullets) ? s.bullets : [],\n  durationSeconds: 10\n}));\n\nconst props = {\n  video: {\n    title: outline.title || scriptPack.title || \"Automated Realty Playbook\",\n    subtitle: \"Luxury-tech AI real estate automation\",\n    theme: \"hybrid-luxury-tech\"\n  },\n  scenes,\n  audio: {\n    voiceoverKey: `${r2Prefix}/audio/vo.mp3`,\n    narration: scriptPack.narration\n  }\n};\n\nreturn [{ json: { ...$json, propsText: JSON.stringify(props) } }];"
+        "jsCode": "const outline = $('Parse Outline JSON').item.json.outline;\nconst strategy = $('Parse Strategy JSON').item.json.strategy || {};\nconst r2Prefix = $('Set Manifest').item.json.r2Prefix;\n\nif (!outline) throw new Error('Missing outline for scene visual prompts');\n\nconst sections = Array.isArray(outline.sections) ? outline.sections : [];\nconst styleNotes = Array.isArray(strategy.visualStyleNotes) ? strategy.visualStyleNotes.join(', ') : '';\n\nreturn sections.map((section, idx) => ({\n  json: {\n    ...$json,\n    sceneIdx: idx,\n    r2Prefix,\n    dallePrompt: section.visualPrompt || [\n      'Premium faceless YouTube real estate visual.',\n      'Luxury residential real estate aesthetic with cinematic editorial lighting.',\n      'No text, no watermark, no obvious brand logos.',\n      `Scene focus: ${section.title || outline.title || 'AI real estate workflow'}.`,\n      section.subtitle ? `Supporting context: ${section.subtitle}.` : '',\n      Array.isArray(section.bullets) && section.bullets.length ? `Key points: ${section.bullets.slice(0, 3).join('; ')}.` : '',\n      styleNotes ? `Style notes: ${styleNotes}.` : '',\n      'Aspect ratio 16:9, cinematic, high detail, top-tier faceless real-estate YouTube style.'\n    ].filter(Boolean).join(' ')\n  }\n}));"
+      },
+      "id": "5d19ef0e-b6bb-4321-9812-0ec6916450d1",
+      "name": "Generate Scene Visual Prompts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20608,
+        26336
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/images/generations",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { model: 'dall-e-3', prompt: $json.dallePrompt, size: '1792x1024', quality: 'hd', response_format: 'url', n: 1 } }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "6a20af7d-db10-4329-bd4a-15ba127b87f0",
+      "name": "Generate Scene Images (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        20848,
+        26336
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "iF7LYwDlfgvrprDp",
+          "name": "Header Auth account 2"
+        },
+        "openAiApi": {
+          "id": "sFXlYidzMmNMnAhG",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map((item) => {\n  const imageUrl = item.json?.data?.[0]?.url || item.json?.body?.data?.[0]?.url || '';\n  if (!imageUrl) {\n    throw new Error(`Generate Scene Images (OpenAI) did not return an image URL for scene ${item.json.sceneIdx}`);\n  }\n\n  return {\n    json: {\n      ...item.json,\n      imageUrl\n    }\n  };\n});"
+      },
+      "id": "af398ce6-4f62-45fb-a722-62239f6dbfd9",
+      "name": "Parse Scene Image Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        21088,
+        26336
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.imageUrl }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "imagebin"
+            }
+          },
+          "timeout": 300000
+        }
+      },
+      "id": "855dfada-8791-4457-8dbd-4e5d3972e5f6",
+      "name": "Download Scene Image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        21328,
+        26336
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Set Manifest').item.json.renderApiBase + '/api/r2/upload' }}",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "={{ $('Set Manifest').item.json.r2Prefix + '/images/scene_' + $json.sceneIdx + '.png' }}"
+            },
+            {
+              "name": "bucket",
+              "value": "={{ $('Set Manifest').item.json.r2Bucket }}"
+            },
+            {
+              "name": "contentType",
+              "value": "image/png"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "imagebin"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "1d9d8f2b-1afc-41b4-ab34-c8c20f30b33f",
+      "name": "R2 Upload Scene Image (Proxy)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        21568,
+        26336
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const sceneVisuals = $input.all().map((item) => ({\n  sceneIdx: item.json.sceneIdx,\n  bgImageKey: `${$('Set Manifest').item.json.r2Prefix}/images/scene_${item.json.sceneIdx}.png`,\n}));\n\nreturn [{\n  json: {\n    ...$('Apply Compliance Fixes').item.json,\n    sceneVisuals\n  }\n}];"
+      },
+      "id": "7c40f4f1-ef91-40ee-8e8f-98fb9574aa64",
+      "name": "Collect Scene Visual Keys",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        21808,
+        26336
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "a7f26c8f-e8aa-48ae-a8c9-3c9d8dd7c2ea",
+      "name": "Merge Voiceover + Visuals",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        21088,
+        26480
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const outline = $('Parse Outline JSON').item.json.outline;\nconst scriptPack = $('Apply Compliance Fixes').item.json.scriptPack;\nconst strategy = $('Parse Strategy JSON').item.json.strategy || {};\nconst sceneVisuals = $('Collect Scene Visual Keys').item.json.sceneVisuals || [];\n\nif (!outline) throw new Error('Missing outline');\nif (!scriptPack) throw new Error('Missing scriptPack');\n\nconst sceneVisualMap = Object.fromEntries(sceneVisuals.map((v) => [String(v.sceneIdx), v.bgImageKey]));\nconst sections = Array.isArray(outline.sections) ? outline.sections : [];\n\nconst scenes = sections.map((s, idx) => {\n  const total = sections.length;\n  let type = s.type || 'TOOL';\n  if (!s.type && idx === 0) type = 'HOOK';\n  if (!s.type && idx === total - 1) type = 'CTA';\n\n  const bullets = Array.isArray(s.bullets) ? s.bullets : [];\n  const uiMock = s.uiMock || {\n    style: idx % 2 === 0 ? 'app-window' : 'glass-card',\n    title: s.title || `Section ${idx + 1}`,\n    lines: bullets.slice(0, 4),\n  };\n\n  return {\n    id: idx + 1,\n    type,\n    durationSec: Number(s.durationSec || s.durationSeconds || (idx === 0 || idx === total - 1 ? 8 : 10)),\n    headline: s.title || s.headline || `Section ${idx + 1}`,\n    subhead: s.subtitle || s.subhead || '',\n    bullets,\n    lowerThird: s.lowerThird || '',\n    uiMock,\n    bgImageKey: sceneVisualMap[String(idx)] || undefined,\n    stat: s.stat && s.stat.value && s.stat.label ? s.stat : undefined,\n    accentColor: '#00a8ff',\n  };\n});\n\nconst props = {\n  brand: 'Automated Realty Playbook',\n  theme: 'hybrid-luxury-tech',\n  title: outline.title || scriptPack.title || 'Automated Realty Playbook',\n  subtitle: outline.hook || 'Luxury-tech AI real estate automation',\n  fps: 30,\n  audioSrc: '',\n  scenes,\n  captions: [],\n  cta: {\n    primary: outline.cta || 'Get the Free 2026 AI Toolkit',\n    secondary: 'Subscribe for weekly ARP workflows',\n  },\n  accentColor: '#00a8ff',\n  disclosures: {\n    education: scriptPack.disclaimer || '',\n    ftc: scriptPack.affiliateDisclosure || '',\n  },\n  strategyTopic: strategy.topic || ''\n};\n\nreturn [{ json: { ...$json, propsText: JSON.stringify(props) } }];"
       },
       "id": "b2da72f0-0e98-40f9-8dc8-b1d39cdb4a8d",
       "name": "Build Remotion Props (Long)",
@@ -728,7 +885,7 @@
           "value": "#video-qa-approval"
         },
         "messageType": "block",
-        "blocksUi": "={{ (() => {\n  const runId = $json.runId || 'missing_runId';\n  const title = $json.youtubeTitle || 'missing_topic';\n  const videoUrl = $json.videoUrl || '';\n  const logUrl = $json.logUrl || '';\n  const manifestUrl = $json.manifestUrl || '';\n\n  const links = [\n    videoUrl ? `*Signed Video:*\\n<${videoUrl}|Open Rendered MP4>` : '*Signed Video:*\\n_Not available_',\n    logUrl ? `*Logs:*\\n<${logUrl}|Open Render Log>` : '*Logs:*\\n_Not available_',\n    manifestUrl ? `*Manifest:*\\n<${manifestUrl}|View Manifest>` : '*Manifest:*\\n_Not available_'\n  ].join('\\n');\n\n  return [\n    {\n      type: 'header',\n      text: { type: 'plain_text', text: 'ARP VIDEO READY FOR QA' }\n    },\n    {\n      type: 'section',\n      fields: [\n        { type: 'mrkdwn', text: `*Run ID:*\\n${runId}` },\n        { type: 'mrkdwn', text: `*Title:*\\n${title}` }\n      ]\n    },\n    {\n      type: 'section',\n      text: {\n        type: 'mrkdwn',\n        text: links\n      }\n    },\n    { type: 'divider' },\n    {\n      type: 'section',\n      text: { type: 'mrkdwn', text: 'Approve to publish to YouTube (private). Reject to stop.' }\n    },\n    {\n      type: 'actions',\n      elements: [\n        {\n          type: 'button',\n          text: { type: 'plain_text', text: 'Approve' },\n          style: 'primary',\n          value: `approved|${runId}`,\n          action_id: 'approve_video'\n        },\n        {\n          type: 'button',\n          text: { type: 'plain_text', text: 'Reject' },\n          style: 'danger',\n          value: `rejected|${runId}`,\n          action_id: 'reject_video'\n        }\n      ]\n    }\n  ];\n})() }}",
+        "blocksUi": "={{ (() => {\n  const runId = String($json.runId || 'missing_runId');\n  const topic = String($json.youtubeTitle || $json.topic || 'Untitled');\n  const videoUrl = String($json.videoUrl || '');\n  const logUrl = String($json.logUrl || '');\n  const manifestUrl = String($json.manifestUrl || '');\n\n  const linksText = [\n    videoUrl ? `*Signed Video:*\\n<${videoUrl}|Open Rendered MP4>` : '*Signed Video:*\\n_Not available_',\n    logUrl ? `*Logs:*\\n<${logUrl}|Open Render Log>` : '*Logs:*\\n_Not available_',\n    manifestUrl ? `*Manifest:*\\n<${manifestUrl}|View Manifest>` : '*Manifest:*\\n_Not available_'\n  ].join('\\n\\n');\n\n  return [\n    {\n      type: 'header',\n      text: { type: 'plain_text', text: 'Video Ready for QA Review 🎬' }\n    },\n    {\n      type: 'section',\n      fields: [\n        { type: 'mrkdwn', text: `*Run ID:*\\n${runId}` },\n        { type: 'mrkdwn', text: `*Topic:*\\n${topic}` }\n      ]\n    },\n    {\n      type: 'section',\n      text: { type: 'mrkdwn', text: linksText }\n    },\n    { type: 'divider' },\n    {\n      type: 'actions',\n      block_id: `qa_${runId}`,\n      elements: [\n        {\n          type: 'button',\n          action_id: 'approve_video',\n          text: { type: 'plain_text', text: '✅ Approve' },\n          style: 'primary',\n          value: `approved|${runId}`\n        },\n        {\n          type: 'button',\n          action_id: 'reject_video',\n          text: { type: 'plain_text', text: '❌ Reject' },\n          style: 'danger',\n          value: `rejected|${runId}`\n        }\n      ]\n    },\n    {\n      type: 'context',\n      elements: [\n        { type: 'mrkdwn', text: 'Automated with this n8n workflow' }\n      ]\n    }\n  ];\n})() }}",
         "text": "={{ `ARP video ready for QA (${ $json.runId || 'missing_runId' })` }}",
         "otherOptions": {}
       },
@@ -887,10 +1044,10 @@
           "values": [
             {
               "role": "system",
-              "content": "You are ARP ScriptAgent for a faceless real estate AI YouTube channel.\n\nReturn ONLY valid JSON (one object). No markdown. No commentary.\n\nDo not omit required keys. If uncertain, return empty strings or empty arrays.\n\nYou must strictly follow the schema."
+              "content": "You are ARP ScriptAgent for a faceless real estate AI YouTube channel. Return ONLY valid JSON (one object). No markdown. No commentary. Keep the topic strictly inside AI + real estate. Never drift into generic productivity, time management, motivation, or self-help. Write like a premium faceless real-estate business channel. Do not omit required keys. If uncertain, return empty strings or empty arrays. You must strictly follow the schema."
             },
             {
-              "content": "=Using this outline JSON, write the full voiceover script.\n\nPreserve the exact schema.\n\nOutline JSON:\n{{ $json.outline }}\n\nReturn a JSON object with EXACT keys:\n\n- title: string\n- narration: string\n- onScreenText: {timestampHint:string, text:string}[]\n- brollPrompts: string[]\n- disclaimer: string\n- affiliateDisclosure: string (empty string if none)\n\nRules:\n- narration should be 700–1100 words.\n- onScreenText should include 8–14 entries.\n- brollPrompts should include 8–14 prompts.\n- disclaimer must be professional and non-legal-advice.\n- Do NOT include any other keys."
+              "content": "=Using this outline JSON, write the full voiceover script. Preserve the exact schema. The topic must stay strictly focused on AI + real estate workflows, agent operations, listings, lead follow-up, marketing automation, deal analysis, or brokerage systems. Never output generic productivity or self-help copy.\n\nOutline JSON:\n{{ $json.outline }}\n\nReturn a JSON object with EXACT keys:\n\n- title: string\n- narration: string\n- onScreenText: {timestampHint:string, text:string}[]\n- brollPrompts: string[]\n- disclaimer: string\n- affiliateDisclosure: string (empty string if none)\n\nRules:\n- narration should be 700–1100 words.\n- onScreenText should include 8–14 entries.\n- brollPrompts should include 8–14 prompts and each should describe premium faceless real-estate visuals, dashboards, charts, neighborhood scenes, listing presentations, CRM screens, or investment analysis overlays.\n- disclaimer must be professional and non-legal-advice.\n- Do NOT include any other keys."
             }
           ]
         },
@@ -1237,7 +1394,7 @@
     },
     {
       "parameters": {
-        "url": "={{ (() => {\n  const rawBase = $('Set Manifest').item.json.renderApiBase || 'https://arp-remotion-renderer.onrender.com';\n  const base = String(rawBase).endsWith('/') ? String(rawBase).slice(0, -1) : String(rawBase);\n  const jobId = $json.jobId || $node[\"Render Long (Render.com API)\"].json.jobId;\n  const runId = $json.runId || $node[\"Render Long (Render.com API)\"].json.runId || '';\n  if (!jobId) throw new Error('Request Status: missing jobId from Render Long response');\n  return `${base}/render/status/${jobId}?runId=${encodeURIComponent(runId)}`;\n})() }}",
+        "url": "={{ (() => {\n  const rawBase = $('Set Manifest').item.json.renderApiBase || 'https://arp-remotion-renderer.onrender.com';\n  const base = String(rawBase).endsWith('/') ? String(rawBase).slice(0, -1) : String(rawBase);\n\n  const jobId =\n    $json.jobId ||\n    $json?.job?.id ||\n    $json?.body?.job?.id ||\n    $json?.body?.jobId ||\n    $node[\"Render Long (Render.com API)\"]?.json?.jobId ||\n    '';\n\n  const runId =\n    $json.runId ||\n    $json?.body?.job?.request?.runId ||\n    $json?.body?.runId ||\n    $json?.job?.request?.runId ||\n    $node[\"Render Long (Render.com API)\"]?.json?.runId ||\n    $('Set Manifest').item.json.runId ||\n    '';\n\n  if (!jobId) {\n    throw new Error('Request Status: missing jobId (checked $json.jobId, $json.body.job.id, and Render Long output)');\n  }\n\n  return `${base}/render/status/${encodeURIComponent(jobId)}?runId=${encodeURIComponent(String(runId))}`;\n})() }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -1403,6 +1560,88 @@
         [
           {
             "node": "Compliance Pass?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Generate Scene Visual Prompts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Scene Visual Prompts": {
+      "main": [
+        [
+          {
+            "node": "Generate Scene Images (OpenAI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Scene Images (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "Parse Scene Image Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Scene Image Response": {
+      "main": [
+        [
+          {
+            "node": "Download Scene Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Scene Image": {
+      "main": [
+        [
+          {
+            "node": "R2 Upload Scene Image (Proxy)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "R2 Upload Scene Image (Proxy)": {
+      "main": [
+        [
+          {
+            "node": "Collect Scene Visual Keys",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Scene Visual Keys": {
+      "main": [
+        [
+          {
+            "node": "Merge Voiceover + Visuals",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Voiceover + Visuals": {
+      "main": [
+        [
+          {
+            "node": "Build Remotion Props (Long)",
             "type": "main",
             "index": 0
           }
@@ -1813,7 +2052,7 @@
       "main": [
         [
           {
-            "node": "Build Remotion Props (Long)",
+            "node": "Merge Voiceover + Visuals",
             "type": "main",
             "index": 0
           }

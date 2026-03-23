@@ -10,21 +10,42 @@ import { parseSrt, segmentsToWordCues } from "./srt";
 import { logger } from "./logger";
 import type { RenderRequest } from "./schema";
 
-// Render queue: prevents concurrent renders to protect RAM
-let renderQueue: Promise<void> = Promise.resolve();
+// Semaphore to allow a configurable number of concurrent render jobs.
+// Previously the code used a single global render lock which serialized
+// all renders. That prevents parallelism even when the machine has
+// spare CPUs. Replace with a semaphore so we can run multiple jobs in
+// parallel while still protecting memory/CPU by limiting concurrent jobs.
+class Semaphore {
+  private max: number;
+  private current = 0;
+  private queue: Array<() => void> = [];
 
-async function withRenderLock<T>(fn: () => Promise<T>): Promise<T> {
-  const prev = renderQueue;
-  let release!: () => void;
-  renderQueue = new Promise<void>((r) => (release = r));
+  constructor(max: number) {
+    this.max = Math.max(1, max);
+  }
 
-  await prev; // wait for previous render to finish
-  try {
-    return await fn();
-  } finally {
-    release();
+  async acquire(): Promise<void> {
+    if (this.current < this.max) {
+      this.current++;
+      return;
+    }
+
+    await new Promise<void>((resolve) => this.queue.push(resolve));
+    this.current++;
+  }
+
+  release(): void {
+    this.current = Math.max(0, this.current - 1);
+    const next = this.queue.shift();
+    if (next) next();
   }
 }
+
+// Determine max concurrent render jobs. Can be overridden with
+// REMOTION_MAX_JOBS env var. Default: half of CPU cores (rounded down),
+// minimum 1.
+const MAX_RENDER_JOBS = Number(process.env.REMOTION_MAX_JOBS) || Math.max(1, Math.floor(os.cpus().length / 2));
+const renderSemaphore = new Semaphore(MAX_RENDER_JOBS);
 
 function findRepoRoot(startDir: string) {
   let dir = startDir;
@@ -98,16 +119,15 @@ async function getBundleLocation(): Promise<string> {
 }
 
 export async function renderLong(req: RenderRequest) {
-  return withRenderLock(async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "arp-render-"));
-    const logLines: string[] = [];
-    const log = (msg: string) => {
-      const line = `[${new Date().toISOString()}] ${msg}`;
-      logLines.push(line);
-      logger.info(line);
-    };
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "arp-render-"));
+  const logLines: string[] = [];
+  const log = (msg: string) => {
+    const line = `[${new Date().toISOString()}] ${msg}`;
+    logLines.push(line);
+    logger.info(line);
+  };
 
-    try {
+  try {
       const compositionId = compositionAliases[req.composition] ?? req.composition;
       if (compositionId !== req.composition) {
         log(`Normalized composition ${req.composition} -> ${compositionId}`);
@@ -129,6 +149,16 @@ export async function renderLong(req: RenderRequest) {
         log(`Captions loaded: segments=${segments.length} wordCues=${propsJson.captions.length}`);
       }
 
+      if (Array.isArray(propsJson.scenes)) {
+        propsJson.scenes = await Promise.all(
+          propsJson.scenes.map(async (scene: any) => {
+            if (scene?.bgImageUrl || !scene?.bgImageKey) return scene;
+            const bgImageUrl = await signedGetUrl(scene.bgImageKey);
+            return { ...scene, bgImageUrl };
+          })
+        );
+      }
+
       // ✅ Fetch mp3 over HTTP
       const audioSrc = await signedGetUrl(req.audioKey);
       log(`audioSrc=${audioSrc}`);
@@ -146,16 +176,31 @@ export async function renderLong(req: RenderRequest) {
 
       const outPath = path.join(tmpDir, "output.mp4");
 
-      await renderMedia({
-        composition,
-        serveUrl: bundleLocation,
-        codec: "h264",
-        outputLocation: outPath,
-        // ✅ pass audioSrc (NOT audioPath)
-        inputProps: { ...propsJson, audioSrc },
-        concurrency: env.REMOTION_CONCURRENCY,
-        chromiumOptions: { gl: env.REMOTION_GL as any },
-      });
+      // Balance per-job Remotion concurrency against number of parallel jobs.
+      const cpus = os.cpus().length || 2;
+      const defaultPerJob = Math.max(1, Math.floor(cpus / MAX_RENDER_JOBS));
+      const effectiveConcurrency = env.REMOTION_CONCURRENCY > 0 ? env.REMOTION_CONCURRENCY : defaultPerJob;
+
+      log(`Waiting for render slot (maxJobs=${MAX_RENDER_JOBS})`);
+      await renderSemaphore.acquire();
+      log(`Acquired render slot; starting render (concurrency=${effectiveConcurrency})`);
+
+      try {
+        await renderMedia({
+          composition,
+          serveUrl: bundleLocation,
+          codec: "h264",
+          outputLocation: outPath,
+          // ✅ pass audioSrc (NOT audioPath)
+          inputProps: { ...propsJson, audioSrc },
+          concurrency: effectiveConcurrency,
+          chromiumOptions: { gl: env.REMOTION_GL as any },
+        });
+      } finally {
+        // release slot even when renderMedia throws
+        renderSemaphore.release();
+        log(`Released render slot`);
+      }
 
       // ✅ Stream upload (no buffering)
       try {
@@ -186,5 +231,4 @@ export async function renderLong(req: RenderRequest) {
         await fs.rm(tmpDir, { recursive: true, force: true });
       } catch {}
     }
-  });
 }

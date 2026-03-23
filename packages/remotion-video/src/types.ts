@@ -1,13 +1,17 @@
 export type WordCue = { startSec: number; endSec: number; word: string };
 export type Scene = {
   id: number;
-  type: "HOOK" | "TOOL" | "CTA" | string;
+  type: "HOOK" | "TOOL" | "STAT" | "CTA" | string;
   durationSec: number;
   headline: string;
   subhead?: string;
   bullets?: string[];
   lowerThird?: string;
   uiMock?: { style: "glass-card" | "app-window"; title: string; lines: string[]; };
+  bgImageKey?: string;
+  bgImageUrl?: string;
+  stat?: { value: string; label: string };
+  accentColor?: string;
 };
 export type LongProps = {
   brand: string;
@@ -20,4 +24,5 @@ export type LongProps = {
   captions?: WordCue[];
   cta?: { primary: string; secondary?: string; urlPrimary?: string; urlSecondary?: string; };
   disclosures?: { ftc?: string; education?: string; ai?: string; fairHousing?: string; };
+  accentColor?: string;
 };
