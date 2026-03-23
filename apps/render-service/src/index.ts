@@ -83,6 +83,20 @@ app.post("/api/r2/download", async (req, res) => {
   }
 });
 
+app.get("/api/r2/open", async (req, res) => {
+  try {
+    const key = String(req.query.key || "").trim();
+    const bucket = String(req.query.bucket || env.R2_BUCKET).trim();
+    if (!key) return res.status(400).json({ ok: false, error: "Missing 'key' query parameter" });
+
+    const signed = await signedGetUrl(key, bucket);
+    return res.redirect(302, signed);
+  } catch (e: any) {
+    logger.error("R2 Open failed:", e);
+    return res.status(500).json({ ok: false, error: e?.message || "Open failed" });
+  }
+});
+
 /** =========================
  *  ASYNC RENDER LONG (NON-BLOCKING)
  *  ========================= */

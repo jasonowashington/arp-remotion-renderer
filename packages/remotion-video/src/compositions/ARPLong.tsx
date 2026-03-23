@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { AbsoluteFill, Audio, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Audio, Img, OffthreadVideo, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import type { LongProps, Scene } from "../types";
 import { CaptionsWordByWord } from "../ui/CaptionsWordByWord";
 import { GlassPanel } from "../ui/GlassPanel";
@@ -69,6 +69,30 @@ const KenBurnsBackground: React.FC<{ src: string; frame: number; durationFrames:
   );
 };
 
+const BrollBackground: React.FC<{
+  src: string;
+  trimBefore?: number;
+  trimAfter?: number;
+}> = ({ src, trimBefore, trimAfter }) => {
+  return (
+    <AbsoluteFill style={{ overflow: "hidden", backgroundColor: "black" }}>
+      <OffthreadVideo
+        src={src}
+        muted
+        trimBefore={trimBefore}
+        trimAfter={trimAfter}
+        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+      />
+      <AbsoluteFill
+        style={{
+          background:
+            "linear-gradient(135deg, rgba(2,3,8,0.72) 0%, rgba(0,0,0,0.52) 100%)",
+        }}
+      />
+    </AbsoluteFill>
+  );
+};
+
 export const ARPLong: React.FC<LongProps> = (props) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
@@ -78,6 +102,15 @@ export const ARPLong: React.FC<LongProps> = (props) => {
   const active = scenes.find((s: any) => frame >= s.startFrame && frame < s.startFrame + s.durationFrames) as any;
   const local = active ? frame - active.startFrame : 0;
   const sceneAccent = active?.accentColor || accent;
+  const transitionFrames = Math.max(8, Math.floor(fps * 0.4));
+  const nextBoundary = scenes.find((s: any) => s.startFrame > frame)?.startFrame ?? null;
+  const distanceToBoundary = nextBoundary === null ? 9999 : Math.abs(nextBoundary - frame);
+  const boundaryPulse = distanceToBoundary < transitionFrames
+    ? interpolate(distanceToBoundary, [transitionFrames, 0], [0, 1], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      })
+    : 0;
 
   const enter = spring({ fps, frame: local, config: { damping: 200 } });
   const y = interpolate(enter, [0, 1], [22, 0]);
@@ -95,7 +128,13 @@ export const ARPLong: React.FC<LongProps> = (props) => {
         opacity: fadeOut,
       }}
     >
-      {active?.bgImageUrl ? (
+      {active?.bgVideoUrl ? (
+        <BrollBackground
+          src={active.bgVideoUrl}
+          trimBefore={active.bgVideoTrimBefore}
+          trimAfter={active.bgVideoTrimAfter}
+        />
+      ) : active?.bgImageUrl ? (
         <KenBurnsBackground src={active.bgImageUrl} frame={local} durationFrames={active.durationFrames} />
       ) : (
         <GradientBackground frame={frame} />
@@ -114,6 +153,20 @@ export const ARPLong: React.FC<LongProps> = (props) => {
           opacity: o,
         }}
       />
+
+      {boundaryPulse > 0 ? (
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: 0,
+            height: 8,
+            background: `linear-gradient(90deg, transparent, ${sceneAccent}, transparent)`,
+            opacity: boundaryPulse,
+          }}
+        />
+      ) : null}
 
       <AbsoluteFill style={{ padding: "72px 80px" }}>
         <div style={{ display: "flex", gap: 40, height: "100%" }}>
@@ -159,9 +212,24 @@ export const ARPLong: React.FC<LongProps> = (props) => {
             ) : null}
 
             {active?.stat ? (
-              <div style={{ marginTop: 28, display: "flex", alignItems: "baseline", gap: 12 }}>
-                <span style={{ fontSize: 80, fontWeight: 900, color: sceneAccent, lineHeight: 1 }}>{active.stat.value}</span>
-                <span style={{ fontSize: 22, opacity: 0.82, maxWidth: 280, lineHeight: 1.2 }}>{active.stat.label}</span>
+              <div
+                style={{
+                  marginTop: 28,
+                  padding: "14px 18px",
+                  borderRadius: 18,
+                  border: `1px solid ${sceneAccent}66`,
+                  background: "rgba(0,0,0,0.35)",
+                  boxShadow: `0 20px 40px ${sceneAccent}22`,
+                  transform: `scale(${interpolate(enter, [0, 1], [0.92, 1])})`,
+                  transformOrigin: "left center",
+                  display: "flex",
+                  alignItems: "baseline",
+                  gap: 12,
+                  width: "fit-content",
+                }}
+              >
+                <span style={{ fontSize: 82, fontWeight: 900, color: sceneAccent, lineHeight: 1 }}>{active.stat.value}</span>
+                <span style={{ fontSize: 22, opacity: 0.84, maxWidth: 300, lineHeight: 1.2 }}>{active.stat.label}</span>
               </div>
             ) : null}
 
@@ -190,7 +258,25 @@ export const ARPLong: React.FC<LongProps> = (props) => {
               </ul>
             ) : null}
 
-            {active?.lowerThird ? <div style={{ marginTop: "auto", paddingTop: 20, fontSize: 16, opacity: 0.68, letterSpacing: 0.4 }}>{active.lowerThird}</div> : null}
+            <div
+              style={{
+                marginTop: "auto",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 10,
+                background: "rgba(0,0,0,0.45)",
+                border: `1px solid ${sceneAccent}55`,
+                borderRadius: 999,
+                padding: "8px 14px",
+                width: "fit-content",
+              }}
+            >
+              <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1.2, color: sceneAccent, textTransform: "uppercase" }}>
+                {props.brand}
+              </span>
+              <span style={{ width: 1, height: 14, background: "rgba(255,255,255,0.25)" }} />
+              <span style={{ fontSize: 14, opacity: 0.82 }}>{active?.lowerThird || active?.headline || props.title}</span>
+            </div>
           </div>
 
           <div style={{ width: 540, display: "flex", alignItems: "center", justifyContent: "center", opacity: o, transform: `translateY(${y}px)` }}>

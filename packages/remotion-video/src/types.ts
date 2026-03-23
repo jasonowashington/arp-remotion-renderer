@@ -10,6 +10,10 @@ export type Scene = {
   uiMock?: { style: "glass-card" | "app-window"; title: string; lines: string[]; };
   bgImageKey?: string;
   bgImageUrl?: string;
+  bgVideoKey?: string;
+  bgVideoUrl?: string;
+  bgVideoTrimBefore?: number;
+  bgVideoTrimAfter?: number;
   stat?: { value: string; label: string };
   accentColor?: string;
 };

@@ -5,7 +5,7 @@ import { existsSync } from "node:fs";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { env } from "./config";
-import { downloadToBuffer, uploadBuffer, uploadFile, signedGetUrl } from "./r2";
+import { downloadToBuffer, existsKey, uploadBuffer, uploadFile, signedGetUrl } from "./r2";
 import { parseSrt, segmentsToWordCues } from "./srt";
 import { logger } from "./logger";
 import type { RenderRequest } from "./schema";
@@ -135,10 +135,7 @@ export async function renderLong(req: RenderRequest) {
 
       log(`Starting render runId=${req.runId} composition=${compositionId}`);
 
-      const [propsBuf, audioBuf] = await Promise.all([
-        downloadToBuffer(req.propsKey),
-        downloadToBuffer(req.audioKey),
-      ]);
+      const propsBuf = await downloadToBuffer(req.propsKey);
 
       const propsJson = JSON.parse(propsBuf.toString("utf-8")) as any;
 
@@ -152,9 +149,23 @@ export async function renderLong(req: RenderRequest) {
       if (Array.isArray(propsJson.scenes)) {
         propsJson.scenes = await Promise.all(
           propsJson.scenes.map(async (scene: any) => {
-            if (scene?.bgImageUrl || !scene?.bgImageKey) return scene;
-            const bgImageUrl = await signedGetUrl(scene.bgImageKey);
-            return { ...scene, bgImageUrl };
+            const next = { ...scene };
+
+            if (!next.bgImageUrl && next.bgImageKey) {
+              const hasImage = await existsKey(next.bgImageKey, env.R2_BUCKET);
+              if (hasImage) {
+                next.bgImageUrl = await signedGetUrl(next.bgImageKey);
+              }
+            }
+
+            if (!next.bgVideoUrl && next.bgVideoKey) {
+              const hasVideo = await existsKey(next.bgVideoKey, env.R2_BUCKET);
+              if (hasVideo) {
+                next.bgVideoUrl = await signedGetUrl(next.bgVideoKey);
+              }
+            }
+
+            return next;
           })
         );
       }
