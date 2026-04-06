@@ -106,7 +106,7 @@ export const ARPLong: React.FC<LongProps> = (props) => {
   const nextBoundary = scenes.find((s: any) => s.startFrame > frame)?.startFrame ?? null;
   const distanceToBoundary = nextBoundary === null ? 9999 : Math.abs(nextBoundary - frame);
   const boundaryPulse = distanceToBoundary < transitionFrames
-    ? interpolate(distanceToBoundary, [transitionFrames, 0], [0, 1], {
+    ? interpolate(distanceToBoundary, [0, transitionFrames], [1, 0], {
         extrapolateLeft: "clamp",
         extrapolateRight: "clamp",
       })
